@@ -1,5 +1,7 @@
 # Pitch — FIFA Tournament Console
 
+![CI](https://github.com/paguos/fifa-tournament/actions/workflows/ci.yml/badge.svg)
+
 A self-hosted tournament organizer for FIFA-style 1v1 contests. This iteration
 supports both **league** (round robin) and **knockout** (single elimination)
 formats — and is intentionally **auth-less**: there is no login. Anyone with
@@ -168,6 +170,43 @@ scripts/
 | `make migrate`     | run `goose up` inside the backend container                        |
 | `make test`        | backend unit tests (`go test ./...`)                                |
 | `make backend-build` | build the Go binary to `backend/bin/server`                       |
+
+## Development
+
+### Pre-commit hooks
+
+Linting and basic checks run via [pre-commit](https://pre-commit.com). The same
+hooks run in CI, so green locally means green in CI.
+
+```bash
+pip install pre-commit
+pre-commit install              # hooks now run on every `git commit`
+pre-commit run --all-files      # run the full suite on demand
+```
+
+What runs:
+
+- General: trailing whitespace, EOF newlines, YAML validity, merge-conflict markers, large-file guard.
+- Backend (`backend/`): `gofmt -l` (formatting) and `go vet ./...`.
+- Frontend (`frontend/`): ESLint (`src/**/*.{ts,tsx}`) and `tsc --noEmit`.
+
+Prettier is configured but **not** wired as a pre-commit hook in this
+iteration — the existing codebase predates Prettier and applying it would
+touch most files. Run it on demand:
+
+```bash
+cd frontend
+npm run format          # write
+npm run format:check    # CI-style check
+```
+
+### CI
+
+GitHub Actions runs three jobs on every push and PR (`.github/workflows/ci.yml`):
+
+1. `pre-commit` — runs all hooks via `pre-commit run --all-files`.
+2. `backend` — `go build ./...` + `go test ./...`.
+3. `frontend` — `npm run lint` + `npm run typecheck`.
 
 ## Logos / attribution
 

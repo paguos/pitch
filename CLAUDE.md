@@ -57,6 +57,11 @@ docs/             Architecture, API, data model, iteration plans
 
 - **No git commits without explicit user approval.** Restating per-repo
   because it's important.
+- **Pre-commit hooks must pass before commits; CI runs the same rules plus
+  tests.** Install with `pip install pre-commit && pre-commit install`. The
+  GitHub Actions workflow at `.github/workflows/ci.yml` runs
+  `pre-commit run --all-files` plus `go build`/`go test` and frontend
+  lint/typecheck.
 - **Never use browser-native `confirm` / `alert` / `prompt`.** Use the in-app
   `AlertDialog` from `frontend/src/components/ui.tsx`. Reason: Chrome MCP
   verification freezes on browser dialogs, and the in-app modal is the
