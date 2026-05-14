@@ -1,0 +1,54 @@
+# Pre-commit hooks. Install with: pip install pre-commit && pre-commit install
+# Run on all files: pre-commit run --all-files
+#
+# CI runs `pre-commit run --all-files`, so anything wired here is enforced
+# both locally and in GitHub Actions.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: '\.md$|^frontend/package-lock\.json$'
+      - id: end-of-file-fixer
+        exclude: '^frontend/package-lock\.json$|^frontend/public/logos/'
+      - id: check-yaml
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=500']
+        exclude: '^frontend/package-lock\.json$|^frontend/public/logos/'
+
+  # Go: run from backend/ as a single package-level invocation.
+  - repo: local
+    hooks:
+      - id: gofmt
+        name: gofmt (backend)
+        language: system
+        entry: bash -c 'cd backend && test -z "$(gofmt -l .)" || { gofmt -d .; exit 1; }'
+        files: ^backend/.*\.go$
+        pass_filenames: false
+      - id: govet
+        name: go vet (backend)
+        language: system
+        entry: bash -c 'cd backend && go vet ./...'
+        files: ^backend/.*\.go$
+        pass_filenames: false
+
+      # Frontend
+      - id: eslint
+        name: eslint (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npx --no-install eslint .'
+        files: ^frontend/src/.*\.(ts|tsx)$
+        pass_filenames: false
+      # Prettier intentionally NOT wired as an enforced hook in this iteration:
+      # the existing codebase predates Prettier and applying it would produce a
+      # large noisy diff that violates the "don't reformat unrelated files"
+      # convention. Run on demand with `cd frontend && npm run format` (writes)
+      # or `npm run format:check` (CI-style check). Re-enable here once a
+      # one-shot formatting pass has been agreed.
+      - id: tsc
+        name: tsc --noEmit (frontend)
+        language: system
+        entry: bash -c 'cd frontend && npm run --silent typecheck'
+        files: ^frontend/.*\.(ts|tsx|json)$
+        pass_filenames: false
