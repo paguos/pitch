@@ -32,11 +32,11 @@ const (
 // NextRound / NextOrd point to the match that consumes this one's winner.
 // If NextRound is 0, this is the final.
 type BracketMatch struct {
-	Round    int
-	Ord      int
-	HomeID   uuid.UUID
-	AwayID   uuid.UUID
-	Status   Status
+	Round     int
+	Ord       int
+	HomeID    uuid.UUID
+	AwayID    uuid.UUID
+	Status    Status
 	NextRound int
 	NextOrd   int
 	NextSlot  Slot
@@ -174,11 +174,11 @@ func BuildBracket(participants []uuid.UUID, seed int64) (Bracket, error) {
 		switch {
 		case a != uuid.Nil && b != uuid.Nil:
 			m := BracketMatch{
-				Round:    1,
-				Ord:      k,
-				HomeID:   a,
-				AwayID:   b,
-				Status:   StatusPlayable,
+				Round:     1,
+				Ord:       k,
+				HomeID:    a,
+				AwayID:    b,
+				Status:    StatusPlayable,
 				NextRound: 2,
 				NextOrd:   r2Parent,
 				NextSlot:  r2Slot,
