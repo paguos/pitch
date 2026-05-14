@@ -36,7 +36,7 @@ export default function TournamentList() {
 
   return (
     <div>
-      <div className="flex items-end justify-between mb-10">
+      <div className="flex flex-wrap items-end justify-between gap-y-4 mb-10">
         <div>
           <Eyebrow accent="pitch">/ ledger</Eyebrow>
           <h1 className="font-display text-6xl leading-none text-bone mt-2">
@@ -64,7 +64,7 @@ export default function TournamentList() {
 
       {list && list.length > 0 && (
         <Card>
-          <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
+          <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
             <div className="col-span-1">#</div>
             <div className="col-span-5">Name</div>
             <div className="col-span-2">Format</div>
@@ -75,23 +75,35 @@ export default function TournamentList() {
             <Link
               key={t.id}
               to={`/tournaments/${t.id}`}
-              className="grid grid-cols-12 gap-4 px-5 py-4 border-b border-hairline last:border-0 hover:bg-ink/40 group"
+              className="flex flex-col gap-1.5 px-5 py-4 border-b border-hairline last:border-0 hover:bg-ink/40 group sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center"
             >
-              <div className="col-span-1 font-mono text-[13px] text-bone/55 number-display">
+              <div className="hidden sm:block col-span-1 font-mono text-[13px] text-bone/55 number-display">
                 {String(i + 1).padStart(2, '0')}
               </div>
               <div className="col-span-5">
-                <div className="font-display text-2xl leading-none text-bone group-hover:text-pitch transition-colors">
-                  {t.name}
+                <div className="flex items-baseline gap-2 sm:block">
+                  <span className="sm:hidden font-mono text-[12px] text-bone/40 number-display">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="font-display text-2xl leading-none text-bone group-hover:text-pitch transition-colors">
+                    {t.name}
+                  </span>
                 </div>
               </div>
-              <div className="col-span-2 font-mono text-[12px] uppercase tracking-widest2 text-bone/80">
+              <div className="flex items-center gap-3 sm:hidden">
+                <span className="font-mono text-[11px] uppercase tracking-widest text-bone/60">{t.format}</span>
+                <Badge tone={statusTone(t.status) as any}>{t.status}</Badge>
+                <span className="font-mono text-[11px] text-bone/50 number-display">
+                  {new Date(t.created_at).toISOString().slice(0, 10)}
+                </span>
+              </div>
+              <div className="hidden sm:block col-span-2 font-mono text-[12px] uppercase tracking-widest2 text-bone/80">
                 {t.format}
               </div>
-              <div className="col-span-2">
+              <div className="hidden sm:block col-span-2">
                 <Badge tone={statusTone(t.status) as any}>{t.status}</Badge>
               </div>
-              <div className="col-span-2 text-right font-mono text-[12px] text-bone/60 number-display">
+              <div className="hidden sm:block col-span-2 text-right font-mono text-[12px] text-bone/60 number-display">
                 {new Date(t.created_at).toISOString().slice(0, 10)}
               </div>
             </Link>
