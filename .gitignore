@@ -1,0 +1,9 @@
+backend/bin/
+backend/server
+backend/tmp/
+frontend/node_modules/
+frontend/dist/
+frontend/tsconfig.tsbuildinfo
+.DS_Store
+.env
+*.log
