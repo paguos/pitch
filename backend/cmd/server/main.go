@@ -13,6 +13,7 @@ import (
 	"github.com/fifa-tournament/backend/internal/api"
 	"github.com/fifa-tournament/backend/internal/config"
 	"github.com/fifa-tournament/backend/internal/store"
+	"github.com/fifa-tournament/backend/migrations"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
@@ -76,19 +77,11 @@ func runMigrations(dbURL string) error {
 		}
 		time.Sleep(time.Second)
 	}
-	goose.SetBaseFS(nil)
+	goose.SetBaseFS(migrations.FS)
 	if err := goose.SetDialect("postgres"); err != nil {
 		return err
 	}
-	dir := "/app/migrations"
-	if _, err := os.Stat(dir); err != nil {
-		// fallback for local `go run`
-		dir = "../db/migrations"
-		if _, err := os.Stat(dir); err != nil {
-			dir = "./db/migrations"
-		}
-	}
-	return goose.Up(db, dir)
+	return goose.Up(db, ".")
 }
 
 // ensure stdlib pgx driver registered.
