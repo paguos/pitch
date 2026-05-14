@@ -10,11 +10,11 @@ type ParticipantRef struct {
 
 // MatchResult is a reported league match.
 type MatchResult struct {
-	HomeID     string
-	AwayID     string
-	HomeGoals  int
-	AwayGoals  int
-	Reported   bool
+	HomeID    string
+	AwayID    string
+	HomeGoals int
+	AwayGoals int
+	Reported  bool
 }
 
 // Row is one row of the standings table.
