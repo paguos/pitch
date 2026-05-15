@@ -83,6 +83,10 @@ export const api = {
     `/tournaments/${id}/participants/${player_id}`,
     { method: 'PATCH', body: JSON.stringify({ team_id }) },
   ),
+  copyTournament: (id: string, name: string) => req<Tournament>(
+    `/tournaments/${id}/copy`,
+    { method: 'POST', body: JSON.stringify({ name }) },
+  ),
   start: (id: string) => req<{ ok: boolean }>(`/tournaments/${id}/start`, { method: 'POST' }),
   endTournament: (id: string) => req<Tournament>(`/tournaments/${id}/end`, { method: 'POST' }),
   submitScore: (matchId: string, home_goals: number, away_goals: number, version: number) =>
