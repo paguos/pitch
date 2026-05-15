@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Stat } from '../components/ui';
@@ -14,6 +14,7 @@ export default function TournamentDetailPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
+  const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
     if (!id) return;
@@ -35,6 +36,11 @@ export default function TournamentDetailPage() {
       setTab(detail.tournament.format === 'knockout' ? 'bracket' : 'fixtures');
     }
   }, [detail?.tournament.status, detail?.tournament.format]);
+
+  // Scroll active tab into view whenever it changes (handles overflow on mobile).
+  useEffect(() => {
+    tabRefs.current[tab]?.scrollIntoView({ inline: 'nearest', block: 'nearest', behavior: 'smooth' });
+  }, [tab]);
 
   if (err) return <div className="text-coral font-mono">{err}</div>;
   if (!detail) return <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/60">loading…</div>;
@@ -120,7 +126,7 @@ export default function TournamentDetailPage() {
         ) : t.status === 'ACTIVE' ? (
           <ActiveActions detail={detail} onChanged={refresh} />
         ) : (
-          <div className="font-mono text-[13px] uppercase tracking-widest2 text-bone/70">
+          <div className="font-mono text-[13px] uppercase tracking-widest2 text-bone/70 whitespace-nowrap">
             tournament completed{t.completed_at ? ` · ${new Date(t.completed_at).toISOString().slice(0,10)}` : ''}
           </div>
         )}
@@ -133,6 +139,7 @@ export default function TournamentDetailPage() {
           return (
             <button
               key={key}
+              ref={el => { tabRefs.current[key] = el; }}
               onClick={() => setTab(key)}
               className={`relative pb-4 shrink-0 whitespace-nowrap font-mono text-[13px] uppercase tracking-widest2 ${
                 active ? 'text-bone' : 'text-bone/60 hover:text-bone/85'
@@ -914,10 +921,10 @@ function LeagueWinnerBanner({
   const winner = rows[0];
   const runner = rows[1];
   return (
-    <div className="mt-8 border border-pitch/40 bg-pitch/5 px-6 py-5 flex items-end gap-8 flex-wrap" data-testid="league-winner-banner">
+    <div className="mt-8 border border-pitch/40 bg-pitch/5 px-6 py-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-8" data-testid="league-winner-banner">
       <div className="flex-1 min-w-0">
         <Eyebrow accent="pitch">league champion</Eyebrow>
-        <div className="mt-2 font-display text-5xl text-bone leading-none truncate">
+        <div className="mt-2 font-display text-3xl sm:text-5xl text-bone leading-none truncate">
           {winner.Name.toUpperCase()}
         </div>
         <div className="mt-2 font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
@@ -926,7 +933,7 @@ function LeagueWinnerBanner({
         </div>
       </div>
       {runner && (
-        <div className="text-right">
+        <div className="sm:text-right">
           <div className="label-eyebrow">runner-up</div>
           <div className="mt-1 font-display text-xl text-bone/80 leading-none">{runner.Name}</div>
           <div className="mt-1 font-mono text-[12px] uppercase tracking-widest2 text-bone/65">
