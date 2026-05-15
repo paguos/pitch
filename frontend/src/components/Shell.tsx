@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
@@ -18,10 +18,17 @@ function getLocalTzLabel(d: Date): string {
   }
 }
 
+const NAV_LINKS = [
+  { to: '/', label: 'Tournaments', exact: true },
+  { to: '/players', label: 'Players', exact: false },
+];
+
 export function Shell({ children }: { children: ReactNode }) {
   const [hhmm, setHhmm] = useState<string>('');
   const [stamp, setStamp] = useState<string>('');
   const [tz, setTz] = useState<string>('');
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const location = useLocation();
 
   useEffect(() => {
     const tick = () => {
@@ -37,6 +44,9 @@ export function Shell({ children }: { children: ReactNode }) {
     const t = setInterval(tick, 15000);
     return () => clearInterval(t);
   }, []);
+
+  // Close drawer on navigation.
+  useEffect(() => { setDrawerOpen(false); }, [location.pathname]);
 
   return (
     <div className="min-h-full flex flex-col">
@@ -67,8 +77,64 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
             </div>
           </div>
+          {/* Hamburger — mobile only */}
+          <button
+            className="md:hidden flex flex-col justify-center gap-[5px] p-1 text-bone/75 hover:text-pitch"
+            aria-label="Open menu"
+            onClick={() => setDrawerOpen(true)}
+          >
+            <span className="block w-5 h-px bg-current" />
+            <span className="block w-5 h-px bg-current" />
+            <span className="block w-5 h-px bg-current" />
+          </button>
         </div>
       </header>
+
+      {/* Mobile drawer */}
+      <div className="md:hidden">
+        {/* Backdrop */}
+        <div
+          className={`fixed inset-0 z-40 bg-ink/70 transition-opacity duration-200 ${drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`}
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
+        {/* Panel */}
+        <div
+          className={`fixed top-0 right-0 z-50 h-full w-64 bg-ink border-l border-hairline flex flex-col transition-transform duration-200 ${drawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        >
+          <div className="flex items-center justify-between px-6 py-5 border-b border-hairline">
+            <Link to="/" className="flex items-baseline gap-2">
+              <span className="font-display text-2xl text-bone leading-none">PITCH</span>
+              <span className="font-mono text-[11px] uppercase tracking-widest2 text-pitch">/ console</span>
+            </Link>
+            <button
+              className="text-bone/55 hover:text-pitch p-1"
+              aria-label="Close menu"
+              onClick={() => setDrawerOpen(false)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <line x1="2" y1="2" x2="14" y2="14" />
+                <line x1="14" y1="2" x2="2" y2="14" />
+              </svg>
+            </button>
+          </div>
+          <nav className="flex flex-col px-6 pt-6 gap-1">
+            {NAV_LINKS.map(({ to, label, exact }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={exact}
+                className={({ isActive }) =>
+                  `font-mono text-[13px] uppercase tracking-widest2 py-3 border-b border-hairline last:border-0 transition-colors ${isActive ? 'text-pitch' : 'text-bone/70 hover:text-pitch'}`
+                }
+              >
+                {label}
+              </NavLink>
+            ))}
+          </nav>
+        </div>
+      </div>
+
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10">{children}</main>
       <footer className="border-t border-hairline">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
