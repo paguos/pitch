@@ -60,7 +60,7 @@ export default function TournamentDetailPage() {
   return (
     <div>
       {/* Header */}
-      <div className="flex items-start gap-8">
+      <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
         <div className="flex-1">
           <Eyebrow accent={t.status === 'ACTIVE' ? 'coral' : 'pitch'}>
             / {t.format} · {t.status}
@@ -78,7 +78,7 @@ export default function TournamentDetailPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-8 pt-2">
+        <div className="grid grid-cols-3 gap-4 sm:gap-8 sm:pt-2">
           <Stat label="players" value={String(detail.participants.length).padStart(2, '0')} />
           <Stat label="matches" value={String(detail.matches.length).padStart(2, '0')} accent="pitch" />
           <Stat
@@ -127,14 +127,14 @@ export default function TournamentDetailPage() {
       </div>
 
       {/* Tabs */}
-      <div className="mt-10 flex gap-6 border-b border-hairline">
+      <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
         {tabs.map(({ key, label, count }) => {
           const active = tab === key;
           return (
             <button
               key={key}
               onClick={() => setTab(key)}
-              className={`relative pb-4 font-mono text-[13px] uppercase tracking-widest2 ${
+              className={`relative pb-4 shrink-0 whitespace-nowrap font-mono text-[13px] uppercase tracking-widest2 ${
                 active ? 'text-bone' : 'text-bone/60 hover:text-bone/85'
               }`}
             >
@@ -495,64 +495,122 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
   }
 
   return (
-    <div className="grid grid-cols-12 gap-4 items-center bg-ash/40 border border-hairline px-5 py-4">
-      <div className="col-span-5 min-w-0 flex items-center justify-end gap-3">
-        <div className="min-w-0 text-right">
-          <div className="font-display text-2xl text-bone leading-none truncate">{home}</div>
-          {homePlayer && (
-            <div className="mt-1.5 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
-              {homePlayer.toLowerCase()}
-            </div>
+    <div className="bg-ash/40 border border-hairline">
+      {/* Mobile layout */}
+      <div className="sm:hidden px-4 py-3 space-y-1">
+        <FixtureSide name={home} logo={homeLogo} player={homePlayer}
+          goals={editing ? h : m.home_goals} editing={editing} onChange={setH} />
+        <FixtureSide name={away} logo={awayLogo} player={awayPlayer}
+          goals={editing ? a : m.away_goals} editing={editing} onChange={setA} />
+        <div className="pt-2 flex items-center justify-end gap-3">
+          {editing ? (
+            <>
+              <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
+              <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
+            </>
+          ) : (
+            <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
+              {reported ? 'edit' : 'report'} →
+            </button>
           )}
         </div>
-        <TeamCrest name={home} logoUrl={homeLogo} size="sm" />
+        {err && <div className="text-coral font-mono text-xs">{err}</div>}
       </div>
 
-      <div className="col-span-2 flex items-center justify-center gap-2">
-        {editing ? (
-          <>
-            <ScoreInput value={h} onChange={setH} />
-            <span className="font-display text-bone/55 text-xl">:</span>
-            <ScoreInput value={a} onChange={setA} />
-          </>
-        ) : reported ? (
-          <div className="font-display text-3xl text-pitch number-display tracking-wider">
-            {m.home_goals}<span className="text-bone/45 px-1.5">·</span>{m.away_goals}
+      {/* Desktop layout */}
+      <div className="hidden sm:grid grid-cols-12 gap-4 items-center px-5 py-4">
+        <div className="col-span-5 min-w-0 flex items-center justify-end gap-3">
+          <div className="min-w-0 text-right">
+            <div className="font-display text-2xl text-bone leading-none truncate">{home}</div>
+            {homePlayer && (
+              <div className="mt-1.5 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
+                {homePlayer.toLowerCase()}
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/55">vs</div>
-        )}
-      </div>
+          <TeamCrest name={home} logoUrl={homeLogo} size="sm" />
+        </div>
 
-      <div className="col-span-3 min-w-0 flex items-center gap-3">
-        <TeamCrest name={away} logoUrl={awayLogo} size="sm" />
+        <div className="col-span-2 flex items-center justify-center gap-2">
+          {editing ? (
+            <>
+              <ScoreInput value={h} onChange={setH} />
+              <span className="font-display text-bone/55 text-xl">:</span>
+              <ScoreInput value={a} onChange={setA} />
+            </>
+          ) : reported ? (
+            <div className="font-display text-3xl text-pitch number-display tracking-wider">
+              {m.home_goals}<span className="text-bone/45 px-1.5">·</span>{m.away_goals}
+            </div>
+          ) : (
+            <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/55">vs</div>
+          )}
+        </div>
+
+        <div className="col-span-3 min-w-0 flex items-center gap-3">
+          <TeamCrest name={away} logoUrl={awayLogo} size="sm" />
+          <div className="min-w-0">
+            <div className="font-display text-2xl text-bone leading-none truncate">{away}</div>
+            {awayPlayer && (
+              <div className="mt-1.5 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
+                {awayPlayer.toLowerCase()}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="col-span-2 flex items-center justify-end gap-2">
+          {editing ? (
+            <>
+              <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
+              <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
+            </>
+          ) : (
+            <button
+              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
+              onClick={() => setEditing(true)}
+            >
+              {reported ? 'edit' : 'report'} →
+            </button>
+          )}
+        </div>
+
+        {err && <div className="col-span-12 text-coral font-mono text-xs">{err}</div>}
+      </div>
+    </div>
+  );
+}
+
+function FixtureSide({ name, logo, player, goals, editing, onChange }: {
+  name: string; logo: string | null; player: string | null;
+  goals: number | null; editing: boolean; onChange: (n: number) => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1">
+      <div className="min-w-0 flex items-center gap-2.5 flex-1">
+        <TeamCrest name={name} logoUrl={logo} size="sm" />
         <div className="min-w-0">
-          <div className="font-display text-2xl text-bone leading-none truncate">{away}</div>
-          {awayPlayer && (
-            <div className="mt-1.5 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
-              {awayPlayer.toLowerCase()}
+          <div className="font-display text-lg text-bone leading-none truncate">{name}</div>
+          {player && (
+            <div className="mt-1 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
+              {player.toLowerCase()}
             </div>
           )}
         </div>
       </div>
-
-      <div className="col-span-2 flex items-center justify-end gap-2">
-        {editing ? (
-          <>
-            <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
-            <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
-          </>
-        ) : (
-          <button
-            className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
-            onClick={() => setEditing(true)}
-          >
-            {reported ? 'edit' : 'report'} →
-          </button>
-        )}
-      </div>
-
-      {err && <div className="col-span-12 text-coral font-mono text-xs">{err}</div>}
+      {editing ? (
+        <input
+          type="number"
+          min={0}
+          value={goals ?? 0}
+          onChange={e => onChange(Math.max(0, parseInt(e.target.value || '0', 10)))}
+          className="w-12 bg-ink border border-hairline focus:border-pitch outline-none text-center font-display text-lg text-bone py-0.5"
+        />
+      ) : goals != null ? (
+        <span className="font-display text-2xl text-pitch number-display">{goals}</span>
+      ) : (
+        <span className="font-mono text-[12px] text-bone/40">—</span>
+      )}
     </div>
   );
 }
@@ -578,14 +636,14 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
     <Card>
       <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-hairline label-eyebrow">
         <div className="col-span-1">#</div>
-        <div className="col-span-4">Team</div>
-        <div className="col-span-1 text-right">P</div>
-        <div className="col-span-1 text-right">W</div>
-        <div className="col-span-1 text-right">D</div>
-        <div className="col-span-1 text-right">L</div>
-        <div className="col-span-1 text-right">GF</div>
-        <div className="col-span-1 text-right">GA</div>
-        <div className="col-span-1 text-right text-pitch">PTS</div>
+        <div className="col-span-8 sm:col-span-4">Team</div>
+        <div className="hidden sm:block col-span-1 text-right">P</div>
+        <div className="hidden sm:block col-span-1 text-right">W</div>
+        <div className="hidden sm:block col-span-1 text-right">D</div>
+        <div className="hidden sm:block col-span-1 text-right">L</div>
+        <div className="hidden sm:block col-span-1 text-right">GF</div>
+        <div className="hidden sm:block col-span-1 text-right">GA</div>
+        <div className="col-span-3 sm:col-span-1 text-right text-pitch">PTS</div>
       </div>
       {rows.map((r, i) => {
         const participant = detail.participants.find(p => p.id === r.ParticipantID);
@@ -599,7 +657,7 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
           <div className="col-span-1 font-display text-2xl text-bone/75 number-display leading-none">
             {String(i + 1).padStart(2, '0')}
           </div>
-          <div className="col-span-4 min-w-0 flex items-center gap-3">
+          <div className="col-span-8 sm:col-span-4 min-w-0 flex items-center gap-3">
             <TeamCrest name={r.Name} logoUrl={logo} size="sm" />
             <div className="min-w-0">
               <div className="font-display text-xl text-bone leading-none truncate">{r.Name}</div>
@@ -610,13 +668,13 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
               )}
             </div>
           </div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Won}</div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Drawn}</div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Lost}</div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsFor}</div>
-          <div className="col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsAgainst}</div>
-          <div className="col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Won}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Drawn}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Lost}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsFor}</div>
+          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsAgainst}</div>
+          <div className="col-span-3 sm:col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
         </div>
         );
       })}
