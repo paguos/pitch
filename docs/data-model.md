@@ -94,7 +94,7 @@ populates `logo_url`.
 | Column         | Type          | Notes                                                    |
 |----------------|---------------|----------------------------------------------------------|
 | `id`           | `uuid PK`     | `gen_random_uuid()`                                      |
-| `name`         | `text`        | required                                                 |
+| `name`         | `text`        | required, unique (`tournaments_name_key`, added `0010`)  |
 | `format`       | `text`        | CHECK `IN ('league','knockout')`                         |
 | `status`       | `text`        | CHECK `IN ('DRAFT','ACTIVE','COMPLETED')`, default `DRAFT` |
 | `created_by`   | `uuid`        | FK `players(id)`; **nullable** since `0005`              |

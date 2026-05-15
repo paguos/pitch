@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -19,6 +20,7 @@ var ErrDownstreamCompleted = errors.New("downstream match already completed; res
 var ErrMatchNotPlayable = errors.New("match is not yet playable")
 var ErrPlayerInUse = errors.New("player is referenced by tournaments and cannot be deleted")
 var ErrTournamentNotStarted = errors.New("tournament has not started")
+var ErrNameTaken = errors.New("a tournament with that name already exists")
 
 type Store struct {
 	DB *pgxpool.Pool
@@ -243,6 +245,55 @@ func (s *Store) GetTournament(ctx context.Context, id uuid.UUID) (Tournament, er
 		return t, ErrNotFound
 	}
 	return t, err
+}
+
+// CopyTournament creates a new DRAFT tournament with the same format and
+// participants (player+team pairs) as the source. Matches are not copied —
+// the draw is generated fresh when the copy is started.
+func (s *Store) CopyTournament(ctx context.Context, sourceID uuid.UUID, newName string) (Tournament, error) {
+	var t Tournament
+
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return t, err
+	}
+	defer tx.Rollback(ctx)
+
+	var format string
+	err = tx.QueryRow(ctx, `SELECT format FROM tournaments WHERE id=$1`, sourceID).Scan(&format)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return t, ErrNotFound
+	}
+	if err != nil {
+		return t, err
+	}
+
+	err = tx.QueryRow(ctx, `
+		INSERT INTO tournaments (name, format, created_by)
+		VALUES ($1, $2, NULL)
+		RETURNING id, name, format, status, created_by, created_at, started_at, completed_at, version, rng_seed
+	`, newName, format).Scan(
+		&t.ID, &t.Name, &t.Format, &t.Status,
+		&t.CreatedBy, &t.CreatedAt, &t.StartedAt, &t.CompletedAt,
+		&t.Version, &t.RngSeed,
+	)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return t, ErrNameTaken
+		}
+		return t, err
+	}
+
+	_, err = tx.Exec(ctx, `
+		INSERT INTO participants (tournament_id, player_id, team_id)
+		SELECT $1, player_id, team_id FROM participants WHERE tournament_id=$2
+	`, t.ID, sourceID)
+	if err != nil {
+		return t, err
+	}
+
+	return t, tx.Commit(ctx)
 }
 
 // --- Participants ---
