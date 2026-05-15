@@ -162,6 +162,20 @@ with the current row.
 - **404** — not found
 - **409** — tournament has not started (still in `DRAFT`)
 
+### `POST /tournaments/{id}/copy`
+
+Creates a new `DRAFT` tournament with the same `format` and all participants
+(player + team pairings) copied from the source. Matches are **not** copied —
+the draw is generated fresh when the copy is started.
+
+Body: `{"name": "New tournament name"}`
+
+**201** — the new tournament row (same shape as `POST /tournaments`).
+
+- **400** — name empty
+- **404** — source tournament not found
+- **409** — a tournament with that name already exists
+
 ---
 
 ## Matches
