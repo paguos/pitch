@@ -1116,9 +1116,8 @@ function QuickDrawModal({
     return () => window.removeEventListener('keydown', onKey);
   }, [onCancel]);
 
-  const selectedPlayers = availablePlayers.filter(p => selectedIds.has(p.id));
-  const allSelected = selectedIds.size === availablePlayers.length;
-
+  // Fix: if the current poolKey isn't in the options (e.g. no national teams
+  // available), fall back to the first valid option automatically.
   const poolOptions = useMemo(() => {
     const opts: { key: string; label: string; teams: Team[] }[] = [];
     const nationals = availableTeams.filter(t => t.kind === 'national');
@@ -1136,6 +1135,18 @@ function QuickDrawModal({
     }
     return opts;
   }, [availableTeams]);
+
+  useEffect(() => {
+    if (!poolOptions.find(o => o.key === poolKey)) {
+      setPoolKey(poolOptions[0]?.key ?? 'national');
+    }
+  }, [poolOptions, poolKey]);
+
+  const selectedPlayers = useMemo(
+    () => availablePlayers.filter(p => selectedIds.has(p.id)),
+    [availablePlayers, selectedIds],
+  );
+  const allSelected = availablePlayers.length > 0 && selectedIds.size === availablePlayers.length;
 
   const currentPoolTeams = poolOptions.find(o => o.key === poolKey)?.teams ?? [];
   const poolEnough = currentPoolTeams.length >= selectedIds.size;
@@ -1169,17 +1180,16 @@ function QuickDrawModal({
     }
   }
 
-  const btnPrimary = 'inline-flex items-center justify-center px-4 py-2 font-mono text-[13px] uppercase tracking-widest2 bg-pitch text-ink hover:bg-pitch/90 disabled:opacity-40 disabled:cursor-not-allowed transition-all';
-  const btnGhost = 'px-4 py-2 font-mono text-[13px] uppercase tracking-widest2 text-bone/75 hover:text-bone';
-
   return (
     <div
+      data-testid="quick-draw-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm"
       onClick={onCancel}
     >
       <div
         role="dialog"
         aria-modal="true"
+        aria-labelledby="quick-draw-title"
         className="relative bg-ash border border-hairline max-w-lg w-[90%] p-7 shadow-xl max-h-[90vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
@@ -1187,7 +1197,7 @@ function QuickDrawModal({
 
         {step === 1 && (
           <>
-            <h2 className="font-display text-4xl leading-none text-bone mt-2">Select Players</h2>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Select Players</h2>
             <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
               <button
                 type="button"
@@ -1227,22 +1237,15 @@ function QuickDrawModal({
               })}
             </div>
             <div className="mt-6 flex items-center justify-end gap-3 border-t border-hairline pt-5">
-              <button type="button" onClick={onCancel} className={btnGhost}>Cancel</button>
-              <button
-                type="button"
-                disabled={selectedIds.size < 2}
-                onClick={() => setStep(2)}
-                className={btnPrimary}
-              >
-                Next →
-              </button>
+              <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+              <Button disabled={selectedIds.size < 2} onClick={() => setStep(2)}>Next →</Button>
             </div>
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2 className="font-display text-4xl leading-none text-bone mt-2">Choose Pool</h2>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Choose Pool</h2>
             <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
               {poolOptions.map(opt => {
                 const enough = opt.teams.length >= selectedIds.size;
@@ -1272,22 +1275,15 @@ function QuickDrawModal({
               {!poolEnough && <span className="text-coral ml-2">— not enough teams</span>}
             </p>
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
-              <button type="button" onClick={() => setStep(1)} className={btnGhost}>← Back</button>
-              <button
-                type="button"
-                disabled={!poolEnough}
-                onClick={goToPreview}
-                className={btnPrimary}
-              >
-                Preview →
-              </button>
+              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+              <Button disabled={!poolEnough} onClick={goToPreview}>Preview →</Button>
             </div>
           </>
         )}
 
         {step === 3 && (
           <>
-            <h2 className="font-display text-4xl leading-none text-bone mt-2">Preview Draw</h2>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Preview Draw</h2>
             <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2">
               {pairs.map(({ player, team }) => (
                 <div key={player.id} className="flex items-center gap-3 px-3 py-2.5 border border-hairline">
@@ -1299,24 +1295,16 @@ function QuickDrawModal({
             </div>
             {err && <div className="mt-3 text-coral font-mono text-xs">{err}</div>}
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
-              <button type="button" onClick={() => setStep(2)} disabled={busy} className={btnGhost}>← Back</button>
+              <Button variant="ghost" disabled={busy} onClick={() => setStep(2)}>← Back</Button>
               <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={shuffle}
+                <Button variant="ghost" disabled={busy} onClick={shuffle}>shuffle ↺</Button>
+                <Button
                   disabled={busy}
-                  className={`${btnGhost} disabled:opacity-40`}
-                >
-                  shuffle ↺
-                </button>
-                <button
-                  type="button"
+                  data-testid="quick-draw-confirm"
                   onClick={confirm}
-                  disabled={busy}
-                  className={btnPrimary}
                 >
                   {busy ? '…' : 'Confirm →'}
-                </button>
+                </Button>
               </div>
             </div>
           </>
