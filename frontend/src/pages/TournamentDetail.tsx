@@ -16,6 +16,7 @@ export default function TournamentDetailPage() {
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
+  const [drawing, setDrawing] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
@@ -124,12 +125,23 @@ export default function TournamentDetailPage() {
               onAdded={refresh}
             />
             <div className="flex-1" />
-            <Button
-              disabled={detail.participants.length < 2}
-              onClick={async () => { await api.start(t.id); refresh(); }}
-            >
-              start tournament →
-            </Button>
+            <div className="flex flex-col items-end gap-3">
+              {availablePlayers.length >= 2 && (
+                <button
+                  type="button"
+                  onClick={() => setDrawing(true)}
+                  className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
+                >
+                  quick draw →
+                </button>
+              )}
+              <Button
+                disabled={detail.participants.length < 2}
+                onClick={async () => { await api.start(t.id); refresh(); }}
+              >
+                start tournament →
+              </Button>
+            </div>
           </div>
         ) : t.status === 'ACTIVE' ? (
           <ActiveActions detail={detail} onChanged={refresh} />
@@ -197,6 +209,16 @@ export default function TournamentDetailPage() {
             navigate(`/tournaments/${copy.id}`);
           }}
           onCancel={() => setCopying(false)}
+        />
+      )}
+
+      {drawing && (
+        <QuickDrawModal
+          availablePlayers={availablePlayers}
+          availableTeams={availableTeams}
+          tournamentId={t.id}
+          onDone={() => { setDrawing(false); refresh(); }}
+          onCancel={() => setDrawing(false)}
         />
       )}
     </div>
@@ -1063,5 +1085,231 @@ function CopyTournamentModal({
       onConfirm={submit}
       onCancel={onCancel}
     />
+  );
+}
+
+function QuickDrawModal({
+  availablePlayers,
+  availableTeams,
+  tournamentId,
+  onDone,
+  onCancel,
+}: {
+  availablePlayers: Player[];
+  availableTeams: Team[];
+  tournamentId: string;
+  onDone: () => void;
+  onCancel: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(
+    new Set(availablePlayers.map(p => p.id)),
+  );
+  const [poolKey, setPoolKey] = useState<string>('national');
+  const [pairs, setPairs] = useState<{ player: Player; team: Team }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onCancel]);
+
+  // Fix: if the current poolKey isn't in the options (e.g. no national teams
+  // available), fall back to the first valid option automatically.
+  const poolOptions = useMemo(() => {
+    const opts: { key: string; label: string; teams: Team[] }[] = [];
+    const nationals = availableTeams.filter(t => t.kind === 'national');
+    if (nationals.length > 0) opts.push({ key: 'national', label: 'National Teams', teams: nationals });
+    const clubs = availableTeams.filter(t => t.kind === 'club');
+    if (clubs.length > 0) opts.push({ key: 'all-clubs', label: 'All Clubs', teams: clubs });
+    const leagueMap = new Map<string, Team[]>();
+    for (const t of clubs) {
+      const arr = leagueMap.get(t.league) ?? [];
+      arr.push(t);
+      leagueMap.set(t.league, arr);
+    }
+    for (const [league, leagueTeams] of leagueMap.entries()) {
+      opts.push({ key: `league:${league}`, label: league, teams: leagueTeams });
+    }
+    return opts;
+  }, [availableTeams]);
+
+  useEffect(() => {
+    if (!poolOptions.find(o => o.key === poolKey)) {
+      setPoolKey(poolOptions[0]?.key ?? 'national');
+    }
+  }, [poolOptions, poolKey]);
+
+  const selectedPlayers = useMemo(
+    () => availablePlayers.filter(p => selectedIds.has(p.id)),
+    [availablePlayers, selectedIds],
+  );
+  const allSelected = availablePlayers.length > 0 && selectedIds.size === availablePlayers.length;
+
+  const currentPoolTeams = poolOptions.find(o => o.key === poolKey)?.teams ?? [];
+  const poolEnough = currentPoolTeams.length >= selectedIds.size;
+
+  function shuffle() {
+    const players = [...selectedPlayers];
+    const pool = [...currentPoolTeams];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    setPairs(players.map((p, i) => ({ player: p, team: pool[i] })));
+  }
+
+  function goToPreview() {
+    shuffle();
+    setStep(3);
+  }
+
+  async function confirm() {
+    setErr(null);
+    setBusy(true);
+    try {
+      for (const { player, team } of pairs) {
+        await api.addParticipant(tournamentId, player.id, team.id);
+      }
+      onDone();
+    } catch (e: any) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      data-testid="quick-draw-dialog"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm"
+      onClick={onCancel}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="quick-draw-title"
+        className="relative bg-ash border border-hairline max-w-lg w-[90%] p-7 shadow-xl max-h-[90vh] flex flex-col"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="label-eyebrow text-coral">/ quick draw — step {step} of 3</div>
+
+        {step === 1 && (
+          <>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Select Players</h2>
+            <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+              <button
+                type="button"
+                className="w-full text-left flex items-center gap-3 px-3 py-2 border border-hairline hover:border-pitch/50 transition-colors"
+                onClick={() => {
+                  if (allSelected) setSelectedIds(new Set());
+                  else setSelectedIds(new Set(availablePlayers.map(p => p.id)));
+                }}
+              >
+                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 ${allSelected ? 'border-pitch bg-pitch' : 'border-hairline'}`}>
+                  {allSelected && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
+                </span>
+                <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">
+                  Select all ({availablePlayers.length})
+                </span>
+              </button>
+              {availablePlayers.map(p => {
+                const checked = selectedIds.has(p.id);
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className="w-full text-left flex items-center gap-3 px-3 py-2.5 border border-hairline hover:border-pitch/50 transition-colors"
+                    onClick={() => {
+                      const next = new Set(selectedIds);
+                      if (checked) next.delete(p.id);
+                      else next.add(p.id);
+                      setSelectedIds(next);
+                    }}
+                  >
+                    <span className={`w-4 h-4 border flex items-center justify-center shrink-0 ${checked ? 'border-pitch bg-pitch' : 'border-hairline'}`}>
+                      {checked && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
+                    </span>
+                    <span className="font-display text-lg text-bone leading-none">{p.display_name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div className="mt-6 flex items-center justify-end gap-3 border-t border-hairline pt-5">
+              <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+              <Button disabled={selectedIds.size < 2} onClick={() => setStep(2)}>Next →</Button>
+            </div>
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Choose Pool</h2>
+            <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+              {poolOptions.map(opt => {
+                const enough = opt.teams.length >= selectedIds.size;
+                return (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    disabled={!enough}
+                    onClick={() => setPoolKey(opt.key)}
+                    className={`w-full text-left flex items-center justify-between px-3 py-2.5 border transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${
+                      poolKey === opt.key ? 'border-pitch' : 'border-hairline hover:border-pitch/50'
+                    }`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <span className={`w-3 h-3 rounded-full border shrink-0 ${poolKey === opt.key ? 'border-pitch bg-pitch' : 'border-bone/40'}`} />
+                      <span className="font-mono text-[13px] uppercase tracking-widest2 text-bone">{opt.label}</span>
+                    </span>
+                    <span className={`font-mono text-[12px] number-display ${enough ? 'text-pitch' : 'text-bone/40'}`}>
+                      {String(opt.teams.length).padStart(3, '0')}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-4 font-mono text-[12px] text-bone/55">
+              {selectedIds.size} player{selectedIds.size !== 1 ? 's' : ''} · pool has {currentPoolTeams.length} teams
+              {!poolEnough && <span className="text-coral ml-2">— not enough teams</span>}
+            </p>
+            <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
+              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+              <Button disabled={!poolEnough} onClick={goToPreview}>Preview →</Button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Preview Draw</h2>
+            <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2">
+              {pairs.map(({ player, team }) => (
+                <div key={player.id} className="flex items-center gap-3 px-3 py-2.5 border border-hairline">
+                  <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
+                  <span className="font-display text-lg text-bone leading-none flex-1 truncate">{team.name}</span>
+                  <span className="font-mono text-[12px] text-bone/60 shrink-0">{player.display_name}</span>
+                </div>
+              ))}
+            </div>
+            {err && <div className="mt-3 text-coral font-mono text-xs">{err}</div>}
+            <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
+              <Button variant="ghost" disabled={busy} onClick={() => setStep(2)}>← Back</Button>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" disabled={busy} onClick={shuffle}>shuffle ↺</Button>
+                <Button
+                  disabled={busy}
+                  data-testid="quick-draw-confirm"
+                  onClick={confirm}
+                >
+                  {busy ? '…' : 'Confirm →'}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
   );
 }
