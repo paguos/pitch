@@ -608,9 +608,11 @@ function FixtureSide({ name, logo, player, goals, editing, onChange }: {
       {editing ? (
         <input
           type="number"
+          inputMode="numeric"
           min={0}
           value={goals ?? 0}
           onChange={e => onChange(Math.max(0, parseInt(e.target.value || '0', 10)))}
+          onFocus={e => e.target.select()}
           className="w-12 bg-ink border border-hairline focus:border-pitch outline-none text-center font-display text-lg text-bone py-0.5"
         />
       ) : goals != null ? (
@@ -626,9 +628,11 @@ function ScoreInput({ value, onChange }: { value: number; onChange: (n: number) 
   return (
     <input
       type="number"
+      inputMode="numeric"
       min={0}
       value={value}
       onChange={e => onChange(Math.max(0, parseInt(e.target.value || '0', 10)))}
+      onFocus={e => e.target.select()}
       className="w-14 bg-ink border border-hairline focus:border-pitch outline-none text-center font-display text-2xl text-bone py-1"
     />
   );
@@ -968,9 +972,11 @@ function BracketSide({
       {editing ? (
         <input
           type="number"
+          inputMode="numeric"
           min={0}
           value={goals ?? 0}
           onChange={e => onChange(Math.max(0, parseInt(e.target.value || '0', 10)))}
+          onFocus={e => e.target.select()}
           className="w-12 bg-ink border border-hairline focus:border-pitch outline-none text-center font-display text-lg text-bone py-0.5"
         />
       ) : goals != null ? (
