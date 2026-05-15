@@ -667,19 +667,21 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
     <Card>
       <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-hairline label-eyebrow">
         <div className="col-span-1">#</div>
-        <div className="col-span-8 sm:col-span-4">Team</div>
-        <div className="hidden sm:block col-span-1 text-right">P</div>
+        <div className="col-span-5 sm:col-span-4">Team</div>
+        <div className="col-span-2 sm:col-span-1 text-right">P</div>
         <div className="hidden sm:block col-span-1 text-right">W</div>
         <div className="hidden sm:block col-span-1 text-right">D</div>
         <div className="hidden sm:block col-span-1 text-right">L</div>
         <div className="hidden sm:block col-span-1 text-right">GF</div>
         <div className="hidden sm:block col-span-1 text-right">GA</div>
-        <div className="col-span-3 sm:col-span-1 text-right text-pitch">PTS</div>
+        <div className="col-span-2 sm:col-span-1 text-right">GD</div>
+        <div className="col-span-2 sm:col-span-1 text-right text-pitch">PTS</div>
       </div>
       {rows.map((r, i) => {
         const participant = detail.participants.find(p => p.id === r.ParticipantID);
         const player = participant?.player_name || null;
         const logo = participant?.team_logo_url || null;
+        const gdColor = r.GoalDiff > 0 ? 'text-pitch' : r.GoalDiff < 0 ? 'text-coral/80' : 'text-bone/60';
         return (
         <div
           key={r.ParticipantID}
@@ -688,7 +690,7 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
           <div className="col-span-1 font-display text-2xl text-bone/75 number-display leading-none">
             {String(i + 1).padStart(2, '0')}
           </div>
-          <div className="col-span-8 sm:col-span-4 min-w-0 flex items-center gap-3">
+          <div className="col-span-5 sm:col-span-4 min-w-0 flex items-center gap-3">
             <TeamCrest name={r.Name} logoUrl={logo} size="sm" />
             <div className="min-w-0">
               <div className="font-display text-xl text-bone leading-none truncate">{r.Name}</div>
@@ -699,13 +701,16 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
               )}
             </div>
           </div>
-          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
+          <div className="col-span-2 sm:col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Won}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Drawn}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Lost}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsFor}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsAgainst}</div>
-          <div className="col-span-3 sm:col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
+          <div className={`col-span-2 sm:col-span-1 text-right number-display text-[15px] ${gdColor}`}>
+            {r.GoalDiff > 0 ? `+${r.GoalDiff}` : r.GoalDiff}
+          </div>
+          <div className="col-span-2 sm:col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
         </div>
         );
       })}
