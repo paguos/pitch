@@ -20,7 +20,7 @@ export default function PlayersPage() {
 
   return (
     <div>
-      <div className="flex items-end justify-between mb-10">
+      <div className="flex flex-wrap items-end justify-between gap-y-4 mb-10">
         <div>
           <Eyebrow accent="pitch">/ roster</Eyebrow>
           <h1 className="font-display text-6xl leading-none text-bone mt-2">
@@ -49,7 +49,7 @@ export default function PlayersPage() {
 
       {players && players.length > 0 && (
         <Card>
-          <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
+          <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
             <div className="col-span-1">#</div>
             <div className="col-span-3">Name</div>
             <div className="col-span-4">Email</div>
@@ -60,21 +60,28 @@ export default function PlayersPage() {
             <div
               key={p.id}
               data-testid={`player-row-${p.display_name}`}
-              className="grid grid-cols-12 gap-4 px-5 py-4 border-b border-hairline last:border-0 items-center"
+              className="flex flex-col gap-1.5 px-5 py-4 border-b border-hairline last:border-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center"
             >
-              <div className="col-span-1 font-mono text-[13px] text-bone/55 number-display">
+              <div className="hidden sm:block col-span-1 font-mono text-[13px] text-bone/55 number-display">
                 {String(i + 1).padStart(2, '0')}
               </div>
-              <div className="col-span-3 font-display text-2xl text-bone leading-none truncate">
-                {p.display_name}
+              <div className="col-span-3">
+                <div className="flex items-baseline gap-2 sm:block">
+                  <span className="sm:hidden font-mono text-[12px] text-bone/40 number-display">
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span className="font-display text-2xl text-bone leading-none">
+                    {p.display_name}
+                  </span>
+                </div>
               </div>
               <div className="col-span-4 font-mono text-[13px] text-bone/80 truncate">
                 {p.email || <span className="text-bone/40">—</span>}
               </div>
-              <div className="col-span-2 text-right font-mono text-[12px] text-bone/60 number-display">
+              <div className="hidden sm:block col-span-2 text-right font-mono text-[12px] text-bone/60 number-display">
                 {new Date(p.created_at).toISOString().slice(0, 10)}
               </div>
-              <div className="col-span-2 flex items-center justify-end gap-3">
+              <div className="col-span-2 flex items-center sm:justify-end gap-3">
                 <button
                   data-testid={`player-edit-${p.display_name}`}
                   onClick={() => setEditing(p)}
@@ -89,6 +96,9 @@ export default function PlayersPage() {
                 >
                   delete
                 </button>
+                <span className="sm:hidden font-mono text-[11px] text-bone/40 number-display ml-auto">
+                  {new Date(p.created_at).toISOString().slice(0, 10)}
+                </span>
               </div>
             </div>
           ))}
