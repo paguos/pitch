@@ -254,6 +254,10 @@ func (a *API) CreateTournament(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := a.Store.CreateTournament(r.Context(), body.Name, body.Format, uuid.Nil)
+	if errors.Is(err, store.ErrNameTaken) {
+		writeErr(w, 409, "a tournament with that name already exists")
+		return
+	}
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return

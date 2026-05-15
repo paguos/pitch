@@ -22,6 +22,9 @@ var ErrPlayerInUse = errors.New("player is referenced by tournaments and cannot 
 var ErrTournamentNotStarted = errors.New("tournament has not started")
 var ErrNameTaken = errors.New("a tournament with that name already exists")
 
+// pgUniqueViolation is the Postgres error code for unique_violation.
+const pgUniqueViolation = "23505"
+
 type Store struct {
 	DB *pgxpool.Pool
 }
@@ -212,6 +215,12 @@ func (s *Store) CreateTournament(ctx context.Context, name, format string, _ uui
 		VALUES ($1, $2, NULL)
 		RETURNING id, name, format, status, created_by, created_at, started_at, completed_at, version, rng_seed
 	`, name, format).Scan(&t.ID, &t.Name, &t.Format, &t.Status, &t.CreatedBy, &t.CreatedAt, &t.StartedAt, &t.CompletedAt, &t.Version, &t.RngSeed)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
+			return t, ErrNameTaken
+		}
+	}
 	return t, err
 }
 
@@ -279,7 +288,7 @@ func (s *Store) CopyTournament(ctx context.Context, sourceID uuid.UUID, newName 
 	)
 	if err != nil {
 		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
 			return t, ErrNameTaken
 		}
 		return t, err

@@ -85,7 +85,7 @@ export default function TournamentDetailPage() {
             </span>
             <button
               onClick={() => setCopying(true)}
-              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/50 hover:text-pitch"
+              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
             >
               copy →
             </button>
