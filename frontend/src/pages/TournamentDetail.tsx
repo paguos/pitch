@@ -685,12 +685,12 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
         return (
         <div
           key={r.ParticipantID}
-          className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-hairline last:border-0 items-start"
+          className="grid grid-cols-12 gap-2 px-5 py-4 border-b border-hairline last:border-0 items-center min-h-[5rem]"
         >
           <div className="col-span-1 font-display text-2xl text-bone/75 number-display leading-none">
             {String(i + 1).padStart(2, '0')}
           </div>
-          <div className="col-span-5 sm:col-span-3 min-w-0 flex items-center gap-3">
+          <div className="col-span-5 sm:col-span-3 min-w-0 flex items-start gap-3">
             <TeamCrest name={r.Name} logoUrl={logo} size="sm" />
             <div className="min-w-0">
               <div className="font-display text-xl text-bone leading-tight">{r.Name}</div>
