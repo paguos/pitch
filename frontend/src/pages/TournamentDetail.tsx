@@ -107,38 +107,33 @@ export default function TournamentDetailPage() {
           KO bracket tab renders its own champion banner; for league we surface
           it at the top of the page since the standings tab is one of several. */}
       {t.status === 'COMPLETED' && !isKO && (
-        <LeagueWinnerBanner
-          rows={detail.standings || []}
-          completedAt={t.completed_at}
-        />
+        <LeagueWinnerBanner rows={detail.standings || []} />
       )}
 
-      {/* Actions */}
-      <div className="mt-10 border-y border-hairline py-5">
-        {t.status === 'DRAFT' ? (
-          <div className="flex flex-wrap items-start gap-6">
-            <AddParticipantForm
-              tournamentId={t.id}
-              availablePlayers={availablePlayers}
-              availableTeams={availableTeams}
-              onAdded={refresh}
-            />
-            <div className="flex-1" />
-            <Button
-              disabled={detail.participants.length < 2}
-              onClick={async () => { await api.start(t.id); refresh(); }}
-            >
-              start tournament →
-            </Button>
-          </div>
-        ) : t.status === 'ACTIVE' ? (
-          <ActiveActions detail={detail} onChanged={refresh} />
-        ) : (
-          <div className="font-mono text-[13px] uppercase tracking-widest2 text-bone/70 whitespace-nowrap">
-            tournament completed{t.completed_at ? ` · ${new Date(t.completed_at).toISOString().slice(0,10)}` : ''}
-          </div>
-        )}
-      </div>
+      {/* Actions — hidden once the tournament is completed */}
+      {t.status !== 'COMPLETED' && (
+        <div className="mt-10 border-y border-hairline py-5">
+          {t.status === 'DRAFT' ? (
+            <div className="flex flex-wrap items-start gap-6">
+              <AddParticipantForm
+                tournamentId={t.id}
+                availablePlayers={availablePlayers}
+                availableTeams={availableTeams}
+                onAdded={refresh}
+              />
+              <div className="flex-1" />
+              <Button
+                disabled={detail.participants.length < 2}
+                onClick={async () => { await api.start(t.id); refresh(); }}
+              >
+                start tournament →
+              </Button>
+            </div>
+          ) : (
+            <ActiveActions detail={detail} onChanged={refresh} />
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
@@ -941,24 +936,19 @@ function ActiveActions({
   );
 }
 
-function LeagueWinnerBanner({
-  rows, completedAt,
-}: { rows: StandingsRow[]; completedAt: string | null }) {
+function LeagueWinnerBanner({ rows }: { rows: StandingsRow[] }) {
   if (rows.length === 0) return null;
-  // Standings are returned pre-sorted by the backend tiebreakers
-  // (Pts → GD → GF → Name); top row is the winner.
   const winner = rows[0];
   const runner = rows[1];
   return (
     <div className="mt-8 border border-pitch/40 bg-pitch/5 px-6 py-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-8" data-testid="league-winner-banner">
       <div className="flex-1 min-w-0">
         <Eyebrow accent="pitch">league champion</Eyebrow>
-        <div className="mt-2 font-display text-3xl sm:text-5xl text-bone leading-none truncate">
+        <div className="mt-2 font-display text-3xl sm:text-5xl text-bone leading-none">
           {winner.Name.toUpperCase()}
         </div>
         <div className="mt-2 font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
-          {winner.Points} pts · {winner.Won}-{winner.Drawn}-{winner.Lost} · GD {winner.GoalDiff >= 0 ? '+' : ''}{winner.GoalDiff}
-          {completedAt ? ` · ended ${new Date(completedAt).toISOString().slice(0,10)}` : ''}
+          {winner.Points} pts
         </div>
       </div>
       {runner && (
