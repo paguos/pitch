@@ -96,7 +96,7 @@ export default function TournamentDetailPage() {
           <Stat label="players" value={String(detail.participants.length).padStart(2, '0')} />
           <Stat label="matches" value={String(detail.matches.length).padStart(2, '0')} accent="pitch" />
           <Stat
-            label="reported"
+            label="played"
             value={String(detail.matches.filter(m => m.status === 'REPORTED').length).padStart(2, '0')}
             accent="coral"
           />
@@ -537,7 +537,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
             </>
           ) : (
             <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
-              {reported ? 'edit' : 'report'} →
+              {reported ? 'edit' : 'score'} →
             </button>
           )}
         </div>
@@ -597,7 +597,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
               onClick={() => setEditing(true)}
             >
-              {reported ? 'edit' : 'report'} →
+              {reported ? 'edit' : 'score'} →
             </button>
           )}
         </div>
@@ -829,7 +829,7 @@ function BracketCard({
             className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
             onClick={() => setEditing(true)}
           >
-            {completed ? 'edit' : 'report'} →
+            {completed ? 'edit' : 'score'} →
           </button>
         )}
       </div>
