@@ -71,7 +71,7 @@ export default function TournamentDetailPage() {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
         <div className="flex-1">
           <Eyebrow accent={t.status === 'ACTIVE' ? 'coral' : 'pitch'}>
-            / {t.format} · {t.status}
+            / {t.format}
           </Eyebrow>
           <h1 className="font-display text-7xl leading-[0.85] text-bone mt-3">
             {t.name.toUpperCase()}
