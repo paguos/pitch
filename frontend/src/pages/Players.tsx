@@ -26,11 +26,6 @@ export default function PlayersPage() {
           <h1 className="font-display text-6xl leading-none text-bone mt-2">
             PLAYERS
           </h1>
-          <p className="text-bone/70 mt-3 max-w-lg text-[14px]">
-            The roster of humans who can join tournaments and punch in scores.
-            Anyone here has full control — there is intentionally no login in
-            this iteration.
-          </p>
         </div>
         <Button onClick={() => setCreating(true)} data-testid="players-create-open">
           + new player

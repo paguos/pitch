@@ -137,12 +137,9 @@ export function Shell({ children }: { children: ReactNode }) {
 
       <main className="flex-1 max-w-6xl w-full mx-auto px-6 py-10">{children}</main>
       <footer className="border-t border-hairline">
-        <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+        <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="font-mono text-[11px] uppercase tracking-widest2 text-bone/55">
-            v0.3 — local edition · no auth
-          </div>
-          <div className="font-mono text-[11px] uppercase tracking-widest2 text-bone/55">
-            league + knockout
+            v0.1 — Pitch Console
           </div>
         </div>
       </footer>
