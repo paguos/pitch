@@ -54,15 +54,15 @@ export default function TournamentDetailPage() {
   const availableTeams = teams.filter(team => !takenTeamIds.has(team.id));
 
   const isKO = t.format === 'knockout';
-  const tabs: { key: Tab; label: string; count?: number }[] = isKO
+  const tabs: { key: Tab; label: string }[] = isKO
     ? [
-        { key: 'participants', label: 'Participants', count: detail.participants.length },
-        { key: 'bracket',      label: 'Bracket',      count: detail.matches.length },
+        { key: 'participants', label: 'Participants' },
+        { key: 'bracket',      label: 'Bracket' },
       ]
     : [
-        { key: 'participants', label: 'Participants', count: detail.participants.length },
-        { key: 'fixtures',     label: 'Fixtures',     count: detail.matches.length },
-        { key: 'standings',    label: 'Standings',    count: detail.standings?.length || 0 },
+        { key: 'participants', label: 'Participants' },
+        { key: 'fixtures',     label: 'Fixtures' },
+        { key: 'standings',    label: 'Standings' },
       ];
 
   return (
@@ -137,7 +137,7 @@ export default function TournamentDetailPage() {
 
       {/* Tabs */}
       <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
-        {tabs.map(({ key, label, count }) => {
+        {tabs.map(({ key, label }) => {
           const active = tab === key;
           return (
             <button
@@ -149,11 +149,6 @@ export default function TournamentDetailPage() {
               }`}
             >
               <span>{label}</span>
-              {count !== undefined && (
-                <span className={`ml-2 ${active ? 'text-pitch' : 'text-bone/50'}`}>
-                  {String(count).padStart(2, '0')}
-                </span>
-              )}
               {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-pitch" />}
             </button>
           );
