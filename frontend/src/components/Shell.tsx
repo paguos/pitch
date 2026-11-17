@@ -1,7 +1,12 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 
-const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+// Baked in at image build time (Dockerfile.prod): a release version like
+// "0.2.0", a short git SHA for dev builds, or unset when running locally.
+const RAW_VERSION: string = (import.meta as any).env?.VITE_APP_VERSION || 'dev';
+const APP_VERSION = /^\d+\.\d+\.\d+/.test(RAW_VERSION) ? `v${RAW_VERSION}` : RAW_VERSION;
+
+const WEEKDAYS =['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 function pad(n: number) {
@@ -139,7 +144,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <footer className="border-t border-hairline">
         <div className="max-w-6xl mx-auto px-6 py-4">
           <div className="font-mono text-[11px] uppercase tracking-widest2 text-bone/55">
-            v0.1 — Pitch Console
+            {APP_VERSION} — Pitch Console
           </div>
         </div>
       </footer>
