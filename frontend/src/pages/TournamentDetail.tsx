@@ -55,15 +55,15 @@ export default function TournamentDetailPage() {
   const availableTeams = teams.filter(team => !takenTeamIds.has(team.id));
 
   const isKO = t.format === 'knockout';
-  const tabs: { key: Tab; label: string; count?: number }[] = isKO
+  const tabs: { key: Tab; label: string }[] = isKO
     ? [
-        { key: 'participants', label: 'Participants', count: detail.participants.length },
-        { key: 'bracket',      label: 'Bracket',      count: detail.matches.length },
+        { key: 'participants', label: 'Participants' },
+        { key: 'bracket',      label: 'Bracket' },
       ]
     : [
-        { key: 'participants', label: 'Participants', count: detail.participants.length },
-        { key: 'fixtures',     label: 'Fixtures',     count: detail.matches.length },
-        { key: 'standings',    label: 'Standings',    count: detail.standings?.length || 0 },
+        { key: 'participants', label: 'Participants' },
+        { key: 'fixtures',     label: 'Fixtures' },
+        { key: 'standings',    label: 'Standings' },
       ];
 
   return (
@@ -72,7 +72,7 @@ export default function TournamentDetailPage() {
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
         <div className="flex-1">
           <Eyebrow accent={t.status === 'ACTIVE' ? 'coral' : 'pitch'}>
-            / {t.format} · {t.status}
+            / {t.format}
           </Eyebrow>
           <h1 className="font-display text-7xl leading-[0.85] text-bone mt-3">
             {t.name.toUpperCase()}
@@ -97,7 +97,7 @@ export default function TournamentDetailPage() {
           <Stat label="players" value={String(detail.participants.length).padStart(2, '0')} />
           <Stat label="matches" value={String(detail.matches.length).padStart(2, '0')} accent="pitch" />
           <Stat
-            label="reported"
+            label="played"
             value={String(detail.matches.filter(m => m.status === 'REPORTED').length).padStart(2, '0')}
             accent="coral"
           />
@@ -108,53 +108,48 @@ export default function TournamentDetailPage() {
           KO bracket tab renders its own champion banner; for league we surface
           it at the top of the page since the standings tab is one of several. */}
       {t.status === 'COMPLETED' && !isKO && (
-        <LeagueWinnerBanner
-          rows={detail.standings || []}
-          completedAt={t.completed_at}
-        />
+        <LeagueWinnerBanner rows={detail.standings || []} />
       )}
 
-      {/* Actions */}
-      <div className="mt-10 border-y border-hairline py-5">
-        {t.status === 'DRAFT' ? (
-          <div className="flex flex-wrap items-start gap-6">
-            <AddParticipantForm
-              tournamentId={t.id}
-              availablePlayers={availablePlayers}
-              availableTeams={availableTeams}
-              onAdded={refresh}
-            />
-            <div className="flex-1" />
-            <div className="flex flex-wrap items-center justify-end gap-3">
-              {availablePlayers.length >= 2 && availableTeams.length >= 2 && (
+      {/* Actions — hidden once the tournament is completed */}
+      {t.status !== 'COMPLETED' && (
+        <div className="mt-10 border-y border-hairline py-5">
+          {t.status === 'DRAFT' ? (
+            <div className="flex flex-wrap items-start gap-6">
+              <AddParticipantForm
+                tournamentId={t.id}
+                availablePlayers={availablePlayers}
+                availableTeams={availableTeams}
+                onAdded={refresh}
+              />
+              <div className="flex-1" />
+              <div className="flex flex-wrap items-center justify-end gap-3">
+                {availablePlayers.length >= 2 && availableTeams.length >= 2 && (
+                  <Button
+                    variant="ghost"
+                    title="Randomly pair players with teams"
+                    onClick={() => setDrawing(true)}
+                  >
+                    quick draw
+                  </Button>
+                )}
                 <Button
-                  variant="ghost"
-                  title="Randomly pair players with teams"
-                  onClick={() => setDrawing(true)}
+                  disabled={detail.participants.length < 2}
+                  onClick={async () => { await api.start(t.id); refresh(); }}
                 >
-                  quick draw
+                  start tournament →
                 </Button>
-              )}
-              <Button
-                disabled={detail.participants.length < 2}
-                onClick={async () => { await api.start(t.id); refresh(); }}
-              >
-                start tournament →
-              </Button>
+              </div>
             </div>
-          </div>
-        ) : t.status === 'ACTIVE' ? (
-          <ActiveActions detail={detail} onChanged={refresh} />
-        ) : (
-          <div className="font-mono text-[13px] uppercase tracking-widest2 text-bone/70 whitespace-nowrap">
-            tournament completed{t.completed_at ? ` · ${new Date(t.completed_at).toISOString().slice(0,10)}` : ''}
-          </div>
-        )}
-      </div>
+          ) : (
+            <ActiveActions detail={detail} onChanged={refresh} />
+          )}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
-        {tabs.map(({ key, label, count }) => {
+        {tabs.map(({ key, label }) => {
           const active = tab === key;
           return (
             <button
@@ -166,11 +161,6 @@ export default function TournamentDetailPage() {
               }`}
             >
               <span>{label}</span>
-              {count !== undefined && (
-                <span className={`ml-2 ${active ? 'text-pitch' : 'text-bone/50'}`}>
-                  {String(count).padStart(2, '0')}
-                </span>
-              )}
               {active && <span className="absolute left-0 right-0 -bottom-px h-0.5 bg-pitch" />}
             </button>
           );
@@ -560,7 +550,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
             </>
           ) : (
             <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
-              {reported ? 'edit' : 'report'} →
+              {reported ? 'edit' : 'score'} →
             </button>
           )}
         </div>
@@ -620,7 +610,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
               onClick={() => setEditing(true)}
             >
-              {reported ? 'edit' : 'report'} →
+              {reported ? 'edit' : 'score'} →
             </button>
           )}
         </div>
@@ -690,31 +680,33 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
     <Card>
       <div className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-hairline label-eyebrow">
         <div className="col-span-1">#</div>
-        <div className="col-span-8 sm:col-span-4">Team</div>
-        <div className="hidden sm:block col-span-1 text-right">P</div>
+        <div className="col-span-5 sm:col-span-3">Team</div>
+        <div className="col-span-2 sm:col-span-1 text-right">P</div>
         <div className="hidden sm:block col-span-1 text-right">W</div>
         <div className="hidden sm:block col-span-1 text-right">D</div>
         <div className="hidden sm:block col-span-1 text-right">L</div>
         <div className="hidden sm:block col-span-1 text-right">GF</div>
         <div className="hidden sm:block col-span-1 text-right">GA</div>
-        <div className="col-span-3 sm:col-span-1 text-right text-pitch">PTS</div>
+        <div className="col-span-2 sm:col-span-1 text-right text-bone/60">GD</div>
+        <div className="col-span-2 sm:col-span-1 text-right text-pitch">PTS</div>
       </div>
       {rows.map((r, i) => {
         const participant = detail.participants.find(p => p.id === r.ParticipantID);
         const player = participant?.player_name || null;
         const logo = participant?.team_logo_url || null;
+        const gdColor = r.GoalDiff > 0 ? 'text-pitch' : r.GoalDiff < 0 ? 'text-coral/80' : 'text-bone/60';
         return (
         <div
           key={r.ParticipantID}
-          className="grid grid-cols-12 gap-2 px-5 py-3 border-b border-hairline last:border-0 items-center"
+          className="grid grid-cols-12 gap-2 px-5 py-4 border-b border-hairline last:border-0 items-center min-h-[5rem]"
         >
           <div className="col-span-1 font-display text-2xl text-bone/75 number-display leading-none">
             {String(i + 1).padStart(2, '0')}
           </div>
-          <div className="col-span-8 sm:col-span-4 min-w-0 flex items-center gap-3">
+          <div className="col-span-5 sm:col-span-3 min-w-0 flex items-center gap-3">
             <TeamCrest name={r.Name} logoUrl={logo} size="sm" />
             <div className="min-w-0">
-              <div className="font-display text-xl text-bone leading-none truncate">{r.Name}</div>
+              <div className="font-display text-xl text-bone leading-tight">{r.Name}</div>
               {player && (
                 <div className="mt-1.5 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
                   {player.toLowerCase()}
@@ -722,13 +714,16 @@ function StandingsTab({ detail }: { detail: TournamentDetail }) {
               )}
             </div>
           </div>
-          <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
+          <div className="col-span-2 sm:col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Played}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Won}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Drawn}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.Lost}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsFor}</div>
           <div className="hidden sm:block col-span-1 text-right number-display text-bone/95 text-[15px]">{r.GoalsAgainst}</div>
-          <div className="col-span-3 sm:col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
+          <div className={`col-span-2 sm:col-span-1 text-right number-display text-[15px] ${gdColor}`}>
+            {r.GoalDiff > 0 ? `+${r.GoalDiff}` : r.GoalDiff}
+          </div>
+          <div className="col-span-2 sm:col-span-1 text-right font-display text-2xl text-pitch leading-none number-display">{r.Points}</div>
         </div>
         );
       })}
@@ -847,7 +842,7 @@ function BracketCard({
             className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
             onClick={() => setEditing(true)}
           >
-            {completed ? 'edit' : 'report'} →
+            {completed ? 'edit' : 'score'} →
           </button>
         )}
       </div>
@@ -959,24 +954,19 @@ function ActiveActions({
   );
 }
 
-function LeagueWinnerBanner({
-  rows, completedAt,
-}: { rows: StandingsRow[]; completedAt: string | null }) {
+function LeagueWinnerBanner({ rows }: { rows: StandingsRow[] }) {
   if (rows.length === 0) return null;
-  // Standings are returned pre-sorted by the backend tiebreakers
-  // (Pts → GD → GF → Name); top row is the winner.
   const winner = rows[0];
   const runner = rows[1];
   return (
     <div className="mt-8 border border-pitch/40 bg-pitch/5 px-6 py-5 flex flex-col gap-5 sm:flex-row sm:items-end sm:gap-8" data-testid="league-winner-banner">
       <div className="flex-1 min-w-0">
         <Eyebrow accent="pitch">league champion</Eyebrow>
-        <div className="mt-2 font-display text-3xl sm:text-5xl text-bone leading-none truncate">
+        <div className="mt-2 font-display text-3xl sm:text-5xl text-bone leading-none">
           {winner.Name.toUpperCase()}
         </div>
         <div className="mt-2 font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
-          {winner.Points} pts · {winner.Won}-{winner.Drawn}-{winner.Lost} · GD {winner.GoalDiff >= 0 ? '+' : ''}{winner.GoalDiff}
-          {completedAt ? ` · ended ${new Date(completedAt).toISOString().slice(0,10)}` : ''}
+          {winner.Points} pts
         </div>
       </div>
       {runner && (

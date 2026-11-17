@@ -42,10 +42,6 @@ export default function TournamentList() {
           <h1 className="font-display text-6xl leading-none text-bone mt-2">
             TOURNAMENT LEDGER
           </h1>
-          <p className="text-bone/70 mt-3 max-w-lg text-[14px]">
-            Every contest, in chronological order. Open a row to seat yourself,
-            kick things off, or punch in scores.
-          </p>
         </div>
         <Link to="/tournaments/new">
           <Button>+ new tournament</Button>
