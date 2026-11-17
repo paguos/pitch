@@ -125,15 +125,15 @@ export default function TournamentDetailPage() {
               onAdded={refresh}
             />
             <div className="flex-1" />
-            <div className="flex flex-col items-end gap-3">
-              {availablePlayers.length >= 2 && (
-                <button
-                  type="button"
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {availablePlayers.length >= 2 && availableTeams.length >= 2 && (
+                <Button
+                  variant="ghost"
+                  title="Randomly pair players with teams"
                   onClick={() => setDrawing(true)}
-                  className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
                 >
-                  quick draw →
-                </button>
+                  quick draw
+                </Button>
               )}
               <Button
                 disabled={detail.participants.length < 2}
@@ -217,6 +217,7 @@ export default function TournamentDetailPage() {
           availablePlayers={availablePlayers}
           availableTeams={availableTeams}
           tournamentId={t.id}
+          onProgress={refresh}
           onDone={() => { setDrawing(false); refresh(); }}
           onCancel={() => setDrawing(false)}
         />
@@ -1088,222 +1089,312 @@ function CopyTournamentModal({
   );
 }
 
+// --- Quick draw: randomly pair a group of players with teams in one go ---
+
+type DrawPair = { player: Player; team: Team };
+
+function shuffled<T>(items: T[]): T[] {
+  const a = [...items];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j]!, a[i]!];
+  }
+  return a;
+}
+
+function plural(n: number, one: string, many = `${one}s`) {
+  return `${n} ${n === 1 ? one : many}`;
+}
+
+function CheckRow({
+  checked, onToggle, children,
+}: { checked: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="checkbox"
+      aria-checked={checked}
+      onClick={onToggle}
+      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
+        checked ? 'border-pitch/60 bg-pitch/[0.04]' : 'border-hairline hover:border-pitch/50'
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`w-4 h-4 border flex items-center justify-center shrink-0 ${checked ? 'border-pitch bg-pitch' : 'border-bone/40'}`}
+      >
+        {checked && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
+      </span>
+      {children}
+    </button>
+  );
+}
+
 function QuickDrawModal({
   availablePlayers,
   availableTeams,
   tournamentId,
+  onProgress,
   onDone,
   onCancel,
 }: {
   availablePlayers: Player[];
   availableTeams: Team[];
   tournamentId: string;
+  /** Called when some (not all) participants were saved, so the page can refresh. */
+  onProgress: () => void;
   onDone: () => void;
   onCancel: () => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    new Set(availablePlayers.map(p => p.id)),
+    () => new Set(availablePlayers.map(p => p.id)),
   );
   const [poolKey, setPoolKey] = useState<string>('national');
-  const [pairs, setPairs] = useState<{ player: Player; team: Team }[]>([]);
+  const [pairs, setPairs] = useState<DrawPair[]>([]);
+  const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
+  const [savedCount, setSavedCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  // Never close mid-save: the loop below would keep running against a
+  // dialog nobody can see.
+  const close = () => { if (!busy) onCancel(); };
+  const closeRef = useRef(close);
+  closeRef.current = close;
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onCancel(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [onCancel]);
+  }, []);
 
-  // Fix: if the current poolKey isn't in the options (e.g. no national teams
-  // available), fall back to the first valid option automatically.
+  // Move focus into the dialog on open and on each step; hand it back on close.
+  useEffect(() => {
+    const opener = document.activeElement as HTMLElement | null;
+    return () => opener?.focus?.();
+  }, []);
+  useEffect(() => { dialogRef.current?.focus(); }, [step]);
+
   const poolOptions = useMemo(() => {
     const opts: { key: string; label: string; teams: Team[] }[] = [];
     const nationals = availableTeams.filter(t => t.kind === 'national');
-    if (nationals.length > 0) opts.push({ key: 'national', label: 'National Teams', teams: nationals });
+    if (nationals.length > 0) opts.push({ key: 'national', label: 'National teams', teams: nationals });
     const clubs = availableTeams.filter(t => t.kind === 'club');
-    if (clubs.length > 0) opts.push({ key: 'all-clubs', label: 'All Clubs', teams: clubs });
+    if (clubs.length > 0) opts.push({ key: 'all-clubs', label: 'All clubs', teams: clubs });
     const leagueMap = new Map<string, Team[]>();
     for (const t of clubs) {
       const arr = leagueMap.get(t.league) ?? [];
       arr.push(t);
       leagueMap.set(t.league, arr);
     }
-    for (const [league, leagueTeams] of leagueMap.entries()) {
+    const leagues = [...leagueMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    for (const [league, leagueTeams] of leagues) {
       opts.push({ key: `league:${league}`, label: league, teams: leagueTeams });
     }
     return opts;
   }, [availableTeams]);
 
-  useEffect(() => {
-    if (!poolOptions.find(o => o.key === poolKey)) {
-      setPoolKey(poolOptions[0]?.key ?? 'national');
-    }
-  }, [poolOptions, poolKey]);
-
+  // Players still waiting for a team. After a partial save the page refreshes
+  // and the saved ones drop out of availablePlayers, so this stays truthful.
   const selectedPlayers = useMemo(
     () => availablePlayers.filter(p => selectedIds.has(p.id)),
     [availablePlayers, selectedIds],
   );
-  const allSelected = availablePlayers.length > 0 && selectedIds.size === availablePlayers.length;
+  const need = selectedPlayers.length;
+  const allSelected = availablePlayers.length > 0 && need === availablePlayers.length;
 
-  const currentPoolTeams = poolOptions.find(o => o.key === poolKey)?.teams ?? [];
-  const poolEnough = currentPoolTeams.length >= selectedIds.size;
+  // The chosen pool, or the first one big enough if the choice no longer fits
+  // (e.g. the user went back and selected more players).
+  const pool =
+    poolOptions.find(o => o.key === poolKey && o.teams.length >= need) ??
+    poolOptions.find(o => o.teams.length >= need) ??
+    null;
 
-  function shuffle() {
-    const players = [...selectedPlayers];
-    const pool = [...currentPoolTeams];
-    for (let i = pool.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [pool[i], pool[j]] = [pool[j], pool[i]];
-    }
-    setPairs(players.map((p, i) => ({ player: p, team: pool[i] })));
+  function draw() {
+    if (!pool) return;
+    const teams = shuffled(pool.teams);
+    setPairs(selectedPlayers.map((player, i) => ({ player, team: teams[i]! })));
+    setDrawNo(n => n + 1);
   }
 
   function goToPreview() {
-    shuffle();
+    draw();
     setStep(3);
   }
 
   async function confirm() {
     setErr(null);
     setBusy(true);
+    const remaining = [...pairs];
     try {
-      for (const { player, team } of pairs) {
-        await api.addParticipant(tournamentId, player.id, team.id);
+      while (remaining.length > 0) {
+        const { player, team } = remaining[0]!;
+        try {
+          await api.addParticipant(tournamentId, player.id, team.id);
+        } catch (e: any) {
+          throw new Error(`Couldn't add ${player.display_name} as ${team.name}: ${e.message}`);
+        }
+        remaining.shift();
+        setSavedCount(c => c + 1);
       }
       onDone();
     } catch (e: any) {
+      // Some pairs may already be saved. Keep only the unsaved ones on screen
+      // so a retry doesn't re-add anyone, and let the page catch up.
+      if (remaining.length < pairs.length) onProgress();
+      setPairs(remaining);
       setErr(e.message);
       setBusy(false);
     }
   }
 
+  const titleId = 'quick-draw-title';
+  const partlySaved = savedCount > 0;
+  const heading = step === 1 ? 'Select players' : step === 2 ? 'Choose a pool' : 'Preview draw';
+  const subhead =
+    step === 1 ? 'Everyone not yet in this tournament. Pick at least 2.'
+    : step === 2 ? 'Each player gets a random team from one pool.'
+    : 'Nothing is saved until you add them.';
+
   return (
     <div
       data-testid="quick-draw-dialog"
       className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm"
-      onClick={onCancel}
+      // A stray click on the backdrop shouldn't throw away a draw in progress.
+      onClick={step === 1 ? close : undefined}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="quick-draw-title"
-        className="relative bg-ash border border-hairline max-w-lg w-[90%] p-7 shadow-xl max-h-[90vh] flex flex-col"
+        aria-labelledby={titleId}
+        className="relative bg-ash border border-hairline max-w-lg w-[90%] h-[min(34rem,90vh)] p-7 shadow-xl flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
-        <div className="label-eyebrow text-coral">/ quick draw — step {step} of 3</div>
+        <div className="flex items-center justify-between">
+          <div className="label-eyebrow text-coral">/ quick draw</div>
+          <div role="img" aria-label={`Step ${step} of 3`} className="flex gap-1.5">
+            {[1, 2, 3].map(n => (
+              <span key={n} className={`h-[2px] w-7 transition-colors ${n <= step ? 'bg-pitch' : 'bg-hairline'}`} />
+            ))}
+          </div>
+        </div>
+        <h2 id={titleId} className="font-display text-4xl leading-none text-bone mt-3">{heading}</h2>
+        <p className="mt-2 text-[13px] text-bone/60">{subhead}</p>
 
         {step === 1 && (
           <>
-            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Select Players</h2>
-            <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
-              <button
-                type="button"
-                className="w-full text-left flex items-center gap-3 px-3 py-2 border border-hairline hover:border-pitch/50 transition-colors"
-                onClick={() => {
-                  if (allSelected) setSelectedIds(new Set());
-                  else setSelectedIds(new Set(availablePlayers.map(p => p.id)));
-                }}
+            <div role="group" aria-label="Players" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+              <CheckRow
+                checked={allSelected}
+                onToggle={() => setSelectedIds(allSelected ? new Set() : new Set(availablePlayers.map(p => p.id)))}
               >
-                <span className={`w-4 h-4 border flex items-center justify-center shrink-0 ${allSelected ? 'border-pitch bg-pitch' : 'border-hairline'}`}>
-                  {allSelected && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
-                </span>
-                <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">
-                  Select all ({availablePlayers.length})
-                </span>
-              </button>
-              {availablePlayers.map(p => {
-                const checked = selectedIds.has(p.id);
-                return (
-                  <button
-                    key={p.id}
-                    type="button"
-                    className="w-full text-left flex items-center gap-3 px-3 py-2.5 border border-hairline hover:border-pitch/50 transition-colors"
-                    onClick={() => {
-                      const next = new Set(selectedIds);
-                      if (checked) next.delete(p.id);
-                      else next.add(p.id);
-                      setSelectedIds(next);
-                    }}
-                  >
-                    <span className={`w-4 h-4 border flex items-center justify-center shrink-0 ${checked ? 'border-pitch bg-pitch' : 'border-hairline'}`}>
-                      {checked && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
-                    </span>
-                    <span className="font-display text-lg text-bone leading-none">{p.display_name}</span>
-                  </button>
-                );
-              })}
+                <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">Select all</span>
+              </CheckRow>
+              {availablePlayers.map(p => (
+                <CheckRow
+                  key={p.id}
+                  checked={selectedIds.has(p.id)}
+                  onToggle={() => {
+                    const next = new Set(selectedIds);
+                    if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
+                    setSelectedIds(next);
+                  }}
+                >
+                  <span className="font-display text-xl text-bone leading-none">{p.display_name}</span>
+                </CheckRow>
+              ))}
             </div>
-            <div className="mt-6 flex items-center justify-end gap-3 border-t border-hairline pt-5">
-              <Button variant="ghost" onClick={onCancel}>Cancel</Button>
-              <Button disabled={selectedIds.size < 2} onClick={() => setStep(2)}>Next →</Button>
+            <div className="mt-5 flex items-center justify-between gap-3 border-t border-hairline pt-5">
+              <span className="font-mono text-[12px] text-bone/60 number-display">
+                {need} of {availablePlayers.length} selected
+              </span>
+              <div className="flex items-center gap-3">
+                <Button variant="ghost" onClick={close}>Cancel</Button>
+                <Button disabled={need < 2} onClick={() => setStep(2)}>Next →</Button>
+              </div>
             </div>
           </>
         )}
 
         {step === 2 && (
           <>
-            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Choose Pool</h2>
-            <div className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+            <div role="radiogroup" aria-label="Team pool" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+              {poolOptions.length === 0 && (
+                <p className="font-mono text-[13px] text-coral">No free teams left to draw from.</p>
+              )}
               {poolOptions.map(opt => {
-                const enough = opt.teams.length >= selectedIds.size;
+                const enough = opt.teams.length >= need;
+                const selected = pool?.key === opt.key;
                 return (
                   <button
                     key={opt.key}
                     type="button"
+                    role="radio"
+                    aria-checked={selected}
                     disabled={!enough}
                     onClick={() => setPoolKey(opt.key)}
-                    className={`w-full text-left flex items-center justify-between px-3 py-2.5 border transition-colors disabled:opacity-35 disabled:cursor-not-allowed ${
-                      poolKey === opt.key ? 'border-pitch' : 'border-hairline hover:border-pitch/50'
+                    className={`w-full text-left flex items-center justify-between gap-3 px-3 py-2.5 border transition-colors disabled:opacity-35 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
+                      selected ? 'border-pitch/60 bg-pitch/[0.04]' : 'border-hairline hover:enabled:border-pitch/50'
                     }`}
                   >
-                    <span className="flex items-center gap-3">
-                      <span className={`w-3 h-3 rounded-full border shrink-0 ${poolKey === opt.key ? 'border-pitch bg-pitch' : 'border-bone/40'}`} />
-                      <span className="font-mono text-[13px] uppercase tracking-widest2 text-bone">{opt.label}</span>
+                    <span className="flex items-center gap-3 min-w-0">
+                      <span
+                        aria-hidden
+                        className={`w-3 h-3 rounded-full border shrink-0 ${selected ? 'border-pitch bg-pitch' : 'border-bone/40'}`}
+                      />
+                      <span className="font-mono text-[13px] uppercase tracking-widest2 text-bone truncate">{opt.label}</span>
                     </span>
-                    <span className={`font-mono text-[12px] number-display ${enough ? 'text-pitch' : 'text-bone/40'}`}>
-                      {String(opt.teams.length).padStart(3, '0')}
+                    <span className={`font-mono text-[12px] number-display shrink-0 ${selected ? 'text-pitch' : 'text-bone/50'}`}>
+                      {plural(opt.teams.length, 'team')}
                     </span>
                   </button>
                 );
               })}
             </div>
-            <p className="mt-4 font-mono text-[12px] text-bone/55">
-              {selectedIds.size} player{selectedIds.size !== 1 ? 's' : ''} · pool has {currentPoolTeams.length} teams
-              {!poolEnough && <span className="text-coral ml-2">— not enough teams</span>}
+            <p className={`mt-4 font-mono text-[12px] ${pool ? 'text-bone/60' : 'text-coral'}`} aria-live="polite">
+              {pool
+                ? `${plural(need, 'player')} will be drawn from ${pool.label.toLowerCase()}.`
+                : `No pool has ${need} free teams. Go back and deselect players.`}
             </p>
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
               <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
-              <Button disabled={!poolEnough} onClick={goToPreview}>Preview →</Button>
+              <Button disabled={!pool} onClick={goToPreview}>Preview draw →</Button>
             </div>
           </>
         )}
 
         {step === 3 && (
           <>
-            <h2 id="quick-draw-title" className="font-display text-4xl leading-none text-bone mt-2">Preview Draw</h2>
             <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2">
-              {pairs.map(({ player, team }) => (
-                <div key={player.id} className="flex items-center gap-3 px-3 py-2.5 border border-hairline">
+              {pairs.map(({ player, team }, i) => (
+                <div
+                  key={`${drawNo}-${player.id}`}
+                  className="draw-reveal flex items-center gap-3 px-3 py-2.5 border border-hairline"
+                  style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}
+                >
+                  <span className="font-display text-xl text-bone leading-none w-[36%] truncate">{player.display_name}</span>
+                  <span aria-hidden className="text-bone/30 font-mono text-[12px]">→</span>
                   <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
-                  <span className="font-display text-lg text-bone leading-none flex-1 truncate">{team.name}</span>
-                  <span className="font-mono text-[12px] text-bone/60 shrink-0">{player.display_name}</span>
+                  <span className="text-[14px] text-bone flex-1 truncate">{team.name}</span>
                 </div>
               ))}
             </div>
-            {err && <div className="mt-3 text-coral font-mono text-xs">{err}</div>}
+            {err && (
+              <div role="alert" className="mt-3 text-coral font-mono text-xs">
+                {err}
+                {partlySaved && ` ${plural(savedCount, 'participant')} already added.`}
+              </div>
+            )}
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
-              <Button variant="ghost" disabled={busy} onClick={() => setStep(2)}>← Back</Button>
+              <Button variant="ghost" disabled={busy || partlySaved} onClick={() => setStep(2)}>← Back</Button>
               <div className="flex items-center gap-3">
-                <Button variant="ghost" disabled={busy} onClick={shuffle}>shuffle ↺</Button>
-                <Button
-                  disabled={busy}
-                  data-testid="quick-draw-confirm"
-                  onClick={confirm}
-                >
-                  {busy ? '…' : 'Confirm →'}
+                <Button variant="ghost" disabled={busy || !pool} onClick={draw}>Shuffle ↺</Button>
+                <Button disabled={busy || pairs.length === 0} data-testid="quick-draw-confirm" onClick={confirm}>
+                  {busy ? 'Adding…' : `Add ${plural(pairs.length, 'participant')}`}
                 </Button>
               </div>
             </div>
