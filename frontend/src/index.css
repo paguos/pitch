@@ -70,3 +70,10 @@
 @media (prefers-reduced-motion: no-preference) {
   .draw-reveal { animation: draw-in 260ms ease-out both; }
 }
+
+/* Quiet scrollbars for scrolling lists inside dialogs. */
+.thin-scroll { scrollbar-width: thin; scrollbar-color: #2A302D transparent; }
+.thin-scroll::-webkit-scrollbar { height: 0; width: 6px; }
+.thin-scroll::-webkit-scrollbar-thumb { background: #2A302D; }
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

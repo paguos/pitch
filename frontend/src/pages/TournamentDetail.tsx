@@ -1140,7 +1140,12 @@ function QuickDrawModal({
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(availablePlayers.map(p => p.id)),
   );
-  const [poolKey, setPoolKey] = useState<string>('national');
+  // The pool is whichever teams are ticked. Presets below just tick a batch.
+  const [teamIds, setTeamIds] = useState<Set<string>>(() => {
+    const nationals = availableTeams.filter(t => t.kind === 'national');
+    return new Set((nationals.length > 0 ? nationals : availableTeams).map(t => t.id));
+  });
+  const [query, setQuery] = useState('');
   const [pairs, setPairs] = useState<DrawPair[]>([]);
   const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
   const [savedCount, setSavedCount] = useState(0);
@@ -1167,7 +1172,7 @@ function QuickDrawModal({
   }, []);
   useEffect(() => { dialogRef.current?.focus(); }, [step]);
 
-  const poolOptions = useMemo(() => {
+  const presets = useMemo(() => {
     const opts: { key: string; label: string; teams: Team[] }[] = [];
     const nationals = availableTeams.filter(t => t.kind === 'national');
     if (nationals.length > 0) opts.push({ key: 'national', label: 'National teams', teams: nationals });
@@ -1195,16 +1200,36 @@ function QuickDrawModal({
   const need = selectedPlayers.length;
   const allSelected = availablePlayers.length > 0 && need === availablePlayers.length;
 
-  // The chosen pool, or the first one big enough if the choice no longer fits
-  // (e.g. the user went back and selected more players).
-  const pool =
-    poolOptions.find(o => o.key === poolKey && o.teams.length >= need) ??
-    poolOptions.find(o => o.teams.length >= need) ??
-    null;
+  // Ticked teams that are still free (a partial save can take some away).
+  const poolTeams = useMemo(
+    () => availableTeams.filter(t => teamIds.has(t.id)),
+    [availableTeams, teamIds],
+  );
+  const poolReady = poolTeams.length >= need;
+  const shortBy = Math.max(0, need - poolTeams.length);
+
+  const visibleTeams = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return availableTeams
+      .filter(t => !q || [t.name, t.league, t.country].some(s => s?.toLowerCase().includes(q)))
+      // Group like a preset would: nationals first, then clubs by league, so a
+      // preset's teams sit together instead of scattering through the list.
+      .sort((a, b) =>
+        Number(b.kind === 'national') - Number(a.kind === 'national') ||
+        (a.kind === 'club' ? a.league : '').localeCompare(b.kind === 'club' ? b.league : '') ||
+        a.name.localeCompare(b.name));
+  }, [availableTeams, query]);
+  const allShownTicked = visibleTeams.length > 0 && visibleTeams.every(t => teamIds.has(t.id));
+
+  function toggleShown() {
+    const next = new Set(teamIds);
+    for (const t of visibleTeams) { if (allShownTicked) next.delete(t.id); else next.add(t.id); }
+    setTeamIds(next);
+  }
 
   function draw() {
-    if (!pool) return;
-    const teams = shuffled(pool.teams);
+    if (!poolReady) return;
+    const teams = shuffled(poolTeams);
     setPairs(selectedPlayers.map((player, i) => ({ player, team: teams[i]! })));
     setDrawNo(n => n + 1);
   }
@@ -1242,10 +1267,10 @@ function QuickDrawModal({
 
   const titleId = 'quick-draw-title';
   const partlySaved = savedCount > 0;
-  const heading = step === 1 ? 'Select players' : step === 2 ? 'Choose a pool' : 'Preview draw';
+  const heading = step === 1 ? 'Select players' : step === 2 ? 'Choose teams' : 'Preview draw';
   const subhead =
     step === 1 ? 'Everyone not yet in this tournament. Pick at least 2.'
-    : step === 2 ? 'Each player gets a random team from one pool.'
+    : step === 2 ? 'Each player gets a random team from your selection. Start from a preset or tick teams yourself.'
     : 'Nothing is saved until you add them.';
 
   return (
@@ -1261,7 +1286,7 @@ function QuickDrawModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="relative bg-ash border border-hairline max-w-lg w-[90%] h-[min(34rem,90vh)] p-7 shadow-xl flex flex-col outline-none"
+        className="relative bg-ash border border-hairline max-w-lg w-[90%] h-[min(42rem,92vh)] p-7 shadow-xl flex flex-col outline-none"
         onClick={e => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -1277,7 +1302,7 @@ function QuickDrawModal({
 
         {step === 1 && (
           <>
-            <div role="group" aria-label="Players" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
+            <div role="group" aria-label="Players" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0 thin-scroll">
               <CheckRow
                 checked={allSelected}
                 onToggle={() => setSelectedIds(allSelected ? new Set() : new Set(availablePlayers.map(p => p.id)))}
@@ -1312,54 +1337,88 @@ function QuickDrawModal({
 
         {step === 2 && (
           <>
-            <div role="radiogroup" aria-label="Team pool" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0">
-              {poolOptions.length === 0 && (
-                <p className="font-mono text-[13px] text-coral">No free teams left to draw from.</p>
-              )}
-              {poolOptions.map(opt => {
-                const enough = opt.teams.length >= need;
-                const selected = pool?.key === opt.key;
+            <div role="group" aria-label="Presets" className="mt-4 flex gap-2 overflow-x-auto shrink-0 no-scrollbar [mask-image:linear-gradient(to_right,black_92%,transparent)] pr-6">
+              {presets.map(p => {
+                const active = poolTeams.length === p.teams.length && p.teams.every(t => teamIds.has(t.id));
                 return (
                   <button
-                    key={opt.key}
+                    key={p.key}
                     type="button"
-                    role="radio"
-                    aria-checked={selected}
-                    disabled={!enough}
-                    onClick={() => setPoolKey(opt.key)}
-                    className={`w-full text-left flex items-center justify-between gap-3 px-3 py-2.5 border transition-colors disabled:opacity-35 disabled:cursor-not-allowed focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
-                      selected ? 'border-pitch/60 bg-pitch/[0.04]' : 'border-hairline hover:enabled:border-pitch/50'
+                    aria-pressed={active}
+                    onClick={() => setTeamIds(new Set(p.teams.map(t => t.id)))}
+                    className={`shrink-0 whitespace-nowrap px-2.5 py-1 border font-mono text-[11px] uppercase tracking-widest2 transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
+                      active ? 'border-pitch/60 bg-pitch/[0.04] text-pitch' : 'border-hairline text-bone/70 hover:border-pitch/50 hover:text-bone'
                     }`}
                   >
-                    <span className="flex items-center gap-3 min-w-0">
-                      <span
-                        aria-hidden
-                        className={`w-3 h-3 rounded-full border shrink-0 ${selected ? 'border-pitch bg-pitch' : 'border-bone/40'}`}
-                      />
-                      <span className="font-mono text-[13px] uppercase tracking-widest2 text-bone truncate">{opt.label}</span>
-                    </span>
-                    <span className={`font-mono text-[12px] number-display shrink-0 ${selected ? 'text-pitch' : 'text-bone/50'}`}>
-                      {plural(opt.teams.length, 'team')}
-                    </span>
+                    {p.label} <span className="number-display opacity-60">{p.teams.length}</span>
                   </button>
                 );
               })}
             </div>
-            <p className={`mt-4 font-mono text-[12px] ${pool ? 'text-bone/60' : 'text-coral'}`} aria-live="polite">
-              {pool
-                ? `${plural(need, 'player')} will be drawn from ${pool.label.toLowerCase()}.`
-                : `No pool has ${need} free teams. Go back and deselect players.`}
-            </p>
-            <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
+            <Input
+              aria-label="Search teams"
+              placeholder="Search by team, league or country"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              className="mt-3 shrink-0 text-[14px]"
+            />
+            <div role="group" aria-label="Teams" className="mt-3 flex-1 overflow-y-auto space-y-1.5 min-h-0 thin-scroll">
+              {availableTeams.length === 0 && (
+                <p className="font-mono text-[13px] text-coral">No free teams left to draw from.</p>
+              )}
+              {availableTeams.length > 0 && visibleTeams.length === 0 && (
+                <p className="font-mono text-[13px] text-bone/60">No teams match “{query.trim()}”.</p>
+              )}
+              {visibleTeams.length > 0 && (
+                <CheckRow checked={allShownTicked} onToggle={toggleShown}>
+                  <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">
+                    {query.trim() ? `Select shown (${visibleTeams.length})` : `Select all (${visibleTeams.length})`}
+                  </span>
+                </CheckRow>
+              )}
+              {visibleTeams.map(t => (
+                <CheckRow
+                  key={t.id}
+                  checked={teamIds.has(t.id)}
+                  onToggle={() => {
+                    const next = new Set(teamIds);
+                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
+                    setTeamIds(next);
+                  }}
+                >
+                  <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
+                  <span className="text-[14px] text-bone flex-1 truncate">{t.name}</span>
+                  {t.kind === 'club' && (
+                    <span className="font-mono text-[11px] text-bone/45 shrink-0 truncate max-w-[40%]">{t.league}</span>
+                  )}
+                </CheckRow>
+              ))}
+            </div>
+            <div className="mt-4 shrink-0" aria-live="polite">
+              <p className={`font-mono text-[12px] ${poolReady ? 'text-bone/60' : 'text-coral'}`}>
+                {availableTeams.length < need
+                  ? `Only ${plural(availableTeams.length, 'team')} left for ${plural(need, 'player')}. Go back and deselect players.`
+                  : poolReady
+                    ? `${plural(poolTeams.length, 'team')} in the draw for ${plural(need, 'player')}.`
+                    : `${poolTeams.length} selected. Pick ${plural(shortBy, 'more team')}.`}
+              </p>
+              <div className="mt-2 h-[2px] bg-hairline" role="presentation">
+                <div
+                  className={`h-full transition-[width] duration-200 ${poolReady ? 'bg-pitch' : 'bg-coral'}`}
+                  style={{ width: `${need > 0 ? Math.min(100, (poolTeams.length / need) * 100) : 0}%` }}
+                />
+              </div>
+            </div>
+            <div className="mt-4 flex items-center justify-between border-t border-hairline pt-5 shrink-0">
               <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
-              <Button disabled={!pool} onClick={goToPreview}>Preview draw →</Button>
+              <Button disabled={!poolReady} onClick={goToPreview}>Preview draw →</Button>
             </div>
           </>
         )}
 
         {step === 3 && (
           <>
-            <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2">
+            <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2 thin-scroll">
               {pairs.map(({ player, team }, i) => (
                 <div
                   key={`${drawNo}-${player.id}`}
@@ -1382,7 +1441,7 @@ function QuickDrawModal({
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
               <Button variant="ghost" disabled={busy || partlySaved} onClick={() => setStep(2)}>← Back</Button>
               <div className="flex items-center gap-3">
-                <Button variant="ghost" disabled={busy || !pool} onClick={draw}>Shuffle ↺</Button>
+                <Button variant="ghost" disabled={busy || !poolReady} onClick={draw}>Shuffle ↺</Button>
                 <Button disabled={busy || pairs.length === 0} data-testid="quick-draw-confirm" onClick={confirm}>
                   {busy ? 'Adding…' : `Add ${plural(pairs.length, 'participant')}`}
                 </Button>
