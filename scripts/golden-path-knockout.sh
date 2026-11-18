@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# End-to-end knockout golden path (auth-less): create 5 players, create a KO
+# End-to-end knockout golden path (signs in as admin): create 5 players, create a KO
 # tournament, add all 5 as participants, start, verify bracket shape (8-slot,
 # 3 byes pre-placed into R2, 1 R1 match, 2 R2 matches, 1 final = 4 total),
 # score every round, assert tournament COMPLETED + champion correct. Also
@@ -8,6 +8,15 @@
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:8080}"
+
+# Sign in as the default admin (set ADMIN_PASSWORD; run first-run setup in the UI
+# once). Every curl below reuses this cookie jar.
+: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD to the admin password}"
+JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
+curl() { command curl -b "$JAR" -c "$JAR" "$@"; }
+curl -sS -f -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}" \
+  "$BASE/auth/login" >/dev/null
 
 show() { printf "\n\033[1;32m▸ %s\033[0m\n" "$*"; }
 fail() { printf "\n\033[1;31m✗ %s\033[0m\n" "$*"; exit 1; }
@@ -34,7 +43,7 @@ TEAMS_PL=$(curl -sS "$BASE/teams?league=Premier%20League"| jq -r '.[0:2] | .[].i
 IFS=$'\n' read -r -d '' -a TEAMS < <(printf '%s\n%s\0' "$TEAMS_LA" "$TEAMS_PL")
 [ "${#TEAMS[@]}" -ge 5 ] || fail "couldn't gather 5 teams"
 
-show "3. Create a KO tournament (no actor needed)"
+show "3. Create a KO tournament (as admin)"
 TID=$(curl -sS -H 'Content-Type: application/json' \
   -d "{\"name\":\"Sunday Knockout $RANDOM\",\"format\":\"knockout\"}" \
   "$BASE/tournaments" | jq -r .id)
