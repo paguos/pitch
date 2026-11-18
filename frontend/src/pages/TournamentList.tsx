@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, Player, Tournament } from '../lib/api';
+import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Eyebrow } from '../components/ui';
 
 const statusTone = (s: Tournament['status']) =>
   s === 'ACTIVE' ? 'live' : s === 'COMPLETED' ? 'pitch' : 'neutral';
 
 export default function TournamentList() {
+  const { isAdmin } = useAuth();
   const [list, setList] = useState<Tournament[] | null>(null);
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -24,12 +26,15 @@ export default function TournamentList() {
           NO PLAYERS YET
         </h1>
         <p className="text-bone/70 mt-3 max-w-lg text-[14px]">
-          Tournaments need a roster of players to draw from. Head to the
-          Players tab and add at least two before drafting a tournament.
+          {isAdmin
+            ? 'Tournaments need a roster of players to draw from. Head to the Players tab and add at least two before drafting a tournament.'
+            : 'An admin needs to add players before tournaments can be drafted.'}
         </p>
-        <div className="mt-6">
-          <Link to="/players"><Button>+ go to players</Button></Link>
-        </div>
+        {isAdmin && (
+          <div className="mt-6">
+            <Link to="/players"><Button>+ go to players</Button></Link>
+          </div>
+        )}
       </div>
     );
   }
@@ -43,9 +48,11 @@ export default function TournamentList() {
             TOURNAMENT LEDGER
           </h1>
         </div>
-        <Link to="/tournaments/new">
-          <Button>+ new tournament</Button>
-        </Link>
+        {isAdmin && (
+          <Link to="/tournaments/new">
+            <Button>+ new tournament</Button>
+          </Link>
+        )}
       </div>
 
       {err && <div className="text-coral font-mono text-xs">{err}</div>}
@@ -54,7 +61,9 @@ export default function TournamentList() {
         <Card className="p-10 text-center">
           <Eyebrow>empty</Eyebrow>
           <p className="font-display text-3xl mt-3 text-bone/70">No tournaments yet.</p>
-          <p className="text-bone/70 mt-2 text-[14px]">Start one — even two players is a league.</p>
+          <p className="text-bone/70 mt-2 text-[14px]">
+            {isAdmin ? 'Start one — even two players is a league.' : 'An admin will add the first one.'}
+          </p>
         </Card>
       )}
 

@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
 import { api, Player } from '../lib/api';
-import { AlertDialog, Button, Card, Eyebrow, Input } from '../components/ui';
+import { useAuth } from '../lib/auth';
+import { AlertDialog, Badge, Button, Card, Eyebrow, Input } from '../components/ui';
 
 export default function PlayersPage() {
+  const { isAdmin } = useAuth();
+  const [roleTarget, setRoleTarget] = useState<Player | null>(null);
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
@@ -27,9 +30,11 @@ export default function PlayersPage() {
             PLAYERS
           </h1>
         </div>
-        <Button onClick={() => setCreating(true)} data-testid="players-create-open">
-          + new player
-        </Button>
+        {isAdmin && (
+          <Button onClick={() => setCreating(true)} data-testid="players-create-open">
+            + new player
+          </Button>
+        )}
       </div>
 
       {err && <div className="text-coral font-mono text-xs mb-4">{err}</div>}
@@ -38,7 +43,9 @@ export default function PlayersPage() {
         <Card className="p-10 text-center">
           <Eyebrow>empty</Eyebrow>
           <p className="font-display text-3xl mt-3 text-bone/70">No players yet.</p>
-          <p className="text-bone/70 mt-2 text-[14px]">Add the first one to start a tournament.</p>
+          <p className="text-bone/70 mt-2 text-[14px]">
+            {isAdmin ? 'Add the first one to start a tournament.' : 'An admin needs to add players first.'}
+          </p>
         </Card>
       )}
 
@@ -46,10 +53,11 @@ export default function PlayersPage() {
         <Card>
           <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
             <div className="col-span-1">#</div>
-            <div className="col-span-3">Name</div>
-            <div className="col-span-4">Email</div>
-            <div className="col-span-2 text-right">Created</div>
-            <div className="col-span-2 text-right">Actions</div>
+            <div className={isAdmin ? 'col-span-2' : 'col-span-8'}>Name</div>
+            {isAdmin && <div className="col-span-3">Email</div>}
+            {isAdmin && <div className="col-span-2">Access</div>}
+            <div className={`${isAdmin ? 'col-span-2' : 'col-span-3'} text-right`}>Created</div>
+            {isAdmin && <div className="col-span-2 text-right">Actions</div>}
           </div>
           {players.map((p, i) => (
             <div
@@ -60,7 +68,7 @@ export default function PlayersPage() {
               <div className="hidden sm:block col-span-1 font-mono text-[13px] text-bone/55 number-display">
                 {String(i + 1).padStart(2, '0')}
               </div>
-              <div className="col-span-3">
+              <div className={isAdmin ? 'col-span-2' : 'col-span-8'}>
                 <div className="flex items-baseline gap-2 sm:block">
                   <span className="sm:hidden font-mono text-[12px] text-bone/40 number-display">
                     {String(i + 1).padStart(2, '0')}
@@ -70,12 +78,36 @@ export default function PlayersPage() {
                   </span>
                 </div>
               </div>
-              <div className="col-span-4 font-mono text-[13px] text-bone/80 truncate">
-                {p.email || <span className="text-bone/40">—</span>}
-              </div>
-              <div className="hidden sm:block col-span-2 text-right font-mono text-[12px] text-bone/60 number-display">
+              {isAdmin && (
+                <div className="col-span-3 font-mono text-[13px] text-bone/80 truncate">
+                  {p.email || <span className="text-bone/40">—</span>}
+                </div>
+              )}
+              {isAdmin && (
+                <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid={`player-access-${p.display_name}`}>
+                  {!p.email ? (
+                    <span className="text-[12px] text-bone/45">add an email to give access</span>
+                  ) : (
+                    <>
+                      <Badge tone={p.role === 'admin' ? 'coral' : 'neutral'}>
+                        {p.role === 'admin' ? 'admin' : 'viewer'}
+                      </Badge>
+                      <span className="text-[12px] text-bone/55">{p.signed_in ? 'signed in' : 'not signed in yet'}</span>
+                      <button
+                        data-testid={`player-role-${p.display_name}`}
+                        onClick={() => setRoleTarget(p)}
+                        className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70 hover:text-pitch"
+                      >
+                        {p.role === 'admin' ? 'remove admin' : 'make admin'}
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+              <div className={`hidden sm:block ${isAdmin ? 'col-span-2' : 'col-span-3'} text-right font-mono text-[12px] text-bone/60 number-display whitespace-nowrap`}>
                 {new Date(p.created_at).toISOString().slice(0, 10)}
               </div>
+              {isAdmin && (
               <div className="col-span-2 flex items-center sm:justify-end gap-3">
                 <button
                   data-testid={`player-edit-${p.display_name}`}
@@ -95,6 +127,7 @@ export default function PlayersPage() {
                   {new Date(p.created_at).toISOString().slice(0, 10)}
                 </span>
               </div>
+              )}
             </div>
           ))}
         </Card>
@@ -126,6 +159,8 @@ export default function PlayersPage() {
           onCancel={() => setEditing(null)}
         />
       )}
+
+      <RoleDialog player={roleTarget} onClose={() => setRoleTarget(null)} onChanged={reload} />
 
       <DeletePlayerDialog
         player={pendingDelete}
@@ -184,7 +219,7 @@ function PlayerFormModal({
             />
           </div>
           <div>
-            <label className="label-eyebrow block mb-2">email (optional)</label>
+            <label className="label-eyebrow block mb-2">Google email (optional)</label>
             <Input
               type="email"
               data-testid="player-form-email"
@@ -192,6 +227,10 @@ function PlayerFormModal({
               onChange={e => setEmail(e.target.value)}
               placeholder="alice@example.com"
             />
+            <p className="mt-2 text-[12px] text-bone/55 leading-snug">
+              Lets this person sign in with Google and see their results.
+              {initial?.email && ' Changing or clearing it signs them out and unlinks their Google account.'}
+            </p>
           </div>
           {err && <div className="text-coral font-mono text-xs">{err}</div>}
         </form>
@@ -257,6 +296,66 @@ function DeletePlayerDialog({
             This cannot be undone.
           </p>
         )
+      }
+      onConfirm={confirm}
+      onCancel={onClose}
+    />
+  );
+}
+
+function RoleDialog({
+  player, onClose, onChanged,
+}: {
+  player: Player | null;
+  onClose: () => void;
+  onChanged: () => Promise<void>;
+}) {
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setErr(null); setBusy(false); }, [player?.id]);
+
+  if (!player) return null;
+  const granting = player.role !== 'admin';
+
+  async function confirm() {
+    if (!player) return;
+    setErr(null);
+    setBusy(true);
+    try {
+      await api.setPlayerRole(player.id, granting ? 'admin' : 'viewer');
+      onClose();
+      await onChanged();
+    } catch (e: any) {
+      setErr(e.message);
+      setBusy(false);
+    }
+  }
+
+  return (
+    <AlertDialog
+      open
+      testId="player-role-dialog"
+      title={granting ? `Make ${player.display_name} an admin?` : `Remove admin from ${player.display_name}?`}
+      destructive={!granting}
+      confirmLabel={busy ? '...' : granting ? 'Make admin' : 'Remove admin'}
+      cancelLabel="Cancel"
+      confirmDisabled={busy}
+      body={
+        <>
+          {granting ? (
+            <p>
+              Admins can change everything: players, tournaments and scores. They can also give admin
+              rights to others. {player.display_name} signs in with{' '}
+              <span className="font-mono text-bone">{player.email}</span>.
+            </p>
+          ) : (
+            <p>
+              {player.display_name} goes back to view-only. This applies the next time they load a page.
+            </p>
+          )}
+          {err && <p className="mt-3 text-coral">{err}</p>}
+        </>
       }
       onConfirm={confirm}
       onCancel={onClose}
