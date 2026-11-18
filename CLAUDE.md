@@ -4,11 +4,18 @@ Repo-scoped instructions for Claude Code sessions working in this directory.
 
 ## About this project
 
-Local-only FIFA tournament organizer. Supports **league** (round-robin) and
+FIFA tournament organizer. Supports **league** (round-robin) and
 **knockout** (single-elimination) formats, players CRUD, and a 2025/26 season
-club + national team catalog with logos. **No authentication** — this is
-intentional for the current iteration; participants are passed explicitly in
-request bodies. Runs entirely on a developer machine via Docker Compose.
+club + national team catalog with logos. Runs on a developer machine via
+Docker Compose and is deployed to a home k8s cluster (see
+`git/paguos/home-k8s-lab`).
+
+**Auth:** everything is behind a sign-in. A default `admin` (password, set on
+a first-run setup screen) can change anything and can grant `admin` to other
+players. Players sign in with Google, only if an admin set their email on
+their player; they are read-only `viewer`s with a "My results" page.
+Participants are still passed explicitly in request bodies (no "acting
+player").
 
 ## How to run
 
@@ -21,12 +28,22 @@ make clean   # stop + remove volumes (wipes DB)
 - `make seed` exists but is **legacy** — the team catalog is loaded by
   migrations (`db/migrations/0007_*`, `0008_*`, `0009_*`), so a fresh `make up`
   already has the catalog.
-- **No pre-seeded players.** Create them in the UI or via `POST /players`.
+- **Four starter players** (Alice, Bob, Carol, Dave @example.com) are seeded by
+  migration `0004`. Add real ones in the UI or via `POST /players` (admin).
+- **First run:** the app opens on a setup screen to choose the `admin`
+  password. Locally, sign in as a player through the fake Google page
+  (`GOOGLE_PROVIDER=fake`, dev only, set in `docker-compose.yml`): type an
+  email that belongs to a player. Lost the admin password:
+  `docker compose exec -e NEW_ADMIN_PASSWORD=… backend /app/server reset-admin-password`.
+- The browser talks to `/api` on the app origin (Vite proxy in dev, nginx in
+  prod). Hit `:8080` directly only from scripts, with a cookie jar.
 
 ## Tech stack
 
 - **Backend**: Go, [chi](https://github.com/go-chi/chi) router, [pgx](https://github.com/jackc/pgx)
   pool, [goose](https://github.com/pressly/goose) migrations, Postgres 16.
+  Auth lives in `internal/auth` (argon2id, sessions, Google/OIDC via
+  `x/oauth2` + go-oidc) and `internal/api/auth.go` (middleware, handlers).
 - **Frontend**: React + Vite + TypeScript + Tailwind. Components are
   hand-rolled (shadcn-inspired but not shadcn) — see
   `frontend/src/components/`:
@@ -66,10 +83,23 @@ docs/             Architecture, API, data model, iteration plans
   `AlertDialog` from `frontend/src/components/ui.tsx`. Reason: Chrome MCP
   verification freezes on browser dialogs, and the in-app modal is the
   established UX pattern.
-- **No auth in this iteration.** When a feature needs "who did this?", use
-  the participant-passed pattern (`player_id` in the request body), not a
-  global actor / session.
-- **Migrations are append-only.** Add `0010_<name>.sql` rather than editing
+- **Every new route must pick its access level.** Register it in
+  `internal/api/api.go` as public (only `/healthz` and `/auth/*`),
+  signed-in (reads), or admin (anything that writes). `TestRoutePolicy`
+  walks the router and fails if a route is open to the wrong people. In the
+  UI, hide write controls with `useAuth().isAdmin`; the server is the real gate.
+- **Who did this?** Still use the participant-passed pattern (`player_id` in
+  the request body). The signed-in user is for access control, not
+  attribution.
+- **Backend tests use real Postgres.** `go test ./...` creates throwaway
+  databases on `localhost:5433` (start `make up` or
+  `docker compose up -d db`; override with `TEST_DATABASE_ADMIN_URL`). They
+  skip locally if it's unreachable and fail in CI.
+- **Don't bump the `go` directive** in `backend/go.mod` casually: the
+  production Dockerfile builds on `golang:1.25`. `go get <pkg>@latest` can
+  raise it; pin an older dependency version instead.
+- **Migrations are append-only.** Add `0012_<name>.sql` (next free number in
+  `backend/migrations/`) rather than editing
   existing ones. Catalog migrations (`0007`/`0008`/`0009`) replace data with
   truncate-and-reseed; new catalog-mutating migrations should follow the same
   idempotent pattern.
@@ -101,7 +131,9 @@ docs/             Architecture, API, data model, iteration plans
 
 ## What NOT to do
 
-- **Don't re-introduce auth** without asking. It was intentionally removed.
+- **Don't add a second login path** (passwords for players, other identity
+  providers, self-service sign-up) without asking. Players sign in with Google
+  only, on an admin-managed allowlist.
 - **Don't add external company / employer references** in code or docs.
   This is a personal project.
 - **Don't ship `console.log` debug prints** in production builds.

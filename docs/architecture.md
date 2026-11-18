@@ -2,7 +2,8 @@
 
 A self-hosted FIFA tournament organizer with two formats — **league**
 (round-robin) and **knockout** (single elimination). Stateless Go backend,
-React SPA, Postgres. No authentication.
+React SPA, Postgres. Sign-in is Google for players plus a password-protected
+`admin`; see the Authentication section of [`api.md`](api.md).
 
 Historical planning artifacts live under [`plan.md`](plan.md) and
 [`plans/`](plans/). This document describes the system as it stands today.

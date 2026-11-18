@@ -1,9 +1,9 @@
 # Data Model
 
-Postgres 16. Schema as it stands after migrations `0001` through `0009`
-(under `db/migrations/`). The historical magic-link / sessions tables
-introduced by `0001` were dropped by `0003`; they are intentionally
-omitted from the table list below.
+Postgres 16. Schema as it stands after migrations `0001` through `0011`
+(under `backend/migrations/`). The magic-link / sessions tables introduced by
+`0001` were dropped by `0003`; `0011` adds new `users` and `sessions` tables
+for the current sign-in (see below).
 
 Extensions used: `citext` (case-insensitive email), `pgcrypto`
 (`gen_random_uuid()`).
@@ -66,8 +66,38 @@ the auth scheme was removed.)
 | `display_name` | `text`        | required                                      |
 | `created_at`   | `timestamptz` | default `now()`                               |
 
-`email` is contact info only — no auth uses it. The case-insensitive
-unique index lives on the `citext` column itself.
+`email` is the sign-in allowlist: a Google account can sign in only if its
+verified email matches a player's `email`. The case-insensitive unique index
+lives on the `citext` column itself.
+
+### `users`
+
+Accounts that can sign in (added by `0011`). A player gets a row the first
+time they sign in, or earlier if an admin grants them a role. The default
+`admin` has a `username` and `password_hash` and no player.
+
+| Column          | Type          | Notes                                                          |
+|-----------------|---------------|----------------------------------------------------------------|
+| `id`            | `uuid PK`     | `gen_random_uuid()`                                            |
+| `username`      | `citext`      | unique, nullable; only the default `admin` has one             |
+| `password_hash` | `text`        | argon2id, nullable; only the default `admin` has one           |
+| `role`          | `text`        | CHECK `IN ('admin','viewer')`, default `viewer`                |
+| `player_id`     | `uuid`        | unique FK `players(id)` `ON DELETE CASCADE`, nullable          |
+| `google_sub`    | `text`        | unique, nullable; set on first Google sign-in, cleared when the player's email changes |
+| `created_at`    | `timestamptz` | default `now()`                                                |
+| `last_login_at` | `timestamptz` | nullable                                                       |
+
+CHECK: a row has a `username` or a `player_id`. The app keeps at least one
+admin at all times.
+
+### `sessions`
+
+| Column       | Type          | Notes                                              |
+|--------------|---------------|----------------------------------------------------|
+| `token_hash` | `text PK`     | sha256 of the cookie value; the token is never stored |
+| `user_id`    | `uuid`        | FK `users(id)` `ON DELETE CASCADE`                 |
+| `created_at` | `timestamptz` | default `now()`                                    |
+| `expires_at` | `timestamptz` | 30 days after sign-in; expired rows are purged on the next sign-in |
 
 ### `teams`
 
@@ -182,3 +212,4 @@ backend boot.
 | `0007_teams_2526.sql`               | Truncate + reseed teams for 25/26 (96 clubs, top 5 leagues)      |
 | `0008_national_teams.sql`           | Allow `kind='national'`; seed ~52 national teams                 |
 | `0009_team_logos.sql`               | Add `teams.logo_url`; map ~150 crests under `frontend/public/logos/` |
+| `0011_auth.sql`                     | Add `users` (roles, Google link, default admin) and `sessions`   |
