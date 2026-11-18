@@ -172,9 +172,10 @@ jobs:
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,scope=frontend,mode=max
 
-  # Deploys are commits to paguos/home-k8s-lab; ArgoCD picks them up.
-  # Needs the HOME_K8S_LAB_TOKEN secret (fine-grained PAT, contents:write on
-  # paguos/home-k8s-lab only).
+  # Deploys are commits to paguos/home-k8s-lab, made by its
+  # scripts/deploy-image.sh (see home-k8s-lab docs/app-delivery.md).
+  # HOME_K8S_LAB_TOKEN: fine-grained PAT, Contents read/write on
+  # paguos/home-k8s-lab only.
   deploy-dev:
     name: deploy dev
     runs-on: ubuntu-latest
@@ -184,9 +185,12 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - run: .github/scripts/bump-overlay.sh dev "${{ needs.publish.outputs.sha }}"
-        env:
-          GH_TOKEN: ${{ secrets.HOME_K8S_LAB_TOKEN }}
+        with:
+          repository: paguos/home-k8s-lab
+          token: ${{ secrets.HOME_K8S_LAB_TOKEN }}
+          path: home-k8s-lab
+          fetch-depth: 0
+      - run: home-k8s-lab/scripts/deploy-image.sh pitch dev "${{ needs.publish.outputs.sha }}"
 
   deploy-prod:
     name: deploy prod
@@ -198,6 +202,9 @@ jobs:
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
-      - run: .github/scripts/bump-overlay.sh prod "${{ needs.release.outputs.version }}"
-        env:
-          GH_TOKEN: ${{ secrets.HOME_K8S_LAB_TOKEN }}
+        with:
+          repository: paguos/home-k8s-lab
+          token: ${{ secrets.HOME_K8S_LAB_TOKEN }}
+          path: home-k8s-lab
+          fetch-depth: 0
+      - run: home-k8s-lab/scripts/deploy-image.sh pitch prod "${{ needs.release.outputs.version }}"

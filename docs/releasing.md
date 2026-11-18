@@ -1,6 +1,6 @@
 # Releasing and deploying
 
-pitch runs on the home k8s lab ([paguos/home-k8s-lab](https://github.com/paguos/home-k8s-lab), `docs/apps/pitch.md`). Deploys are git commits to that repo, which ArgoCD syncs.
+pitch runs on the home k8s lab ([paguos/home-k8s-lab](https://github.com/paguos/home-k8s-lab), `docs/apps/pitch.md`). Deploys are git commits to that repo, which ArgoCD syncs. This is the lab's standard pipeline for all apps (home-k8s-lab `docs/app-delivery.md`); pitch is its reference implementation.
 
 | Env | URL | Gets deployed when | Image tag |
 |---|---|---|---|
@@ -12,7 +12,7 @@ pitch runs on the home k8s lab ([paguos/home-k8s-lab](https://github.com/paguos/
 1. Push to `main` runs lint and tests.
 2. **release-please** updates the open `chore(main): release X.Y.Z` PR (version bump in `.release-please-manifest.json` and `frontend/package.json`, plus `CHANGELOG.md`).
 3. **publish** builds arm64 images tagged `<sha>` and `main`, plus `X.Y.Z` on a release.
-4. **deploy dev** pins `manifests/pitch/overlays/dev` to `<sha>` (`.github/scripts/bump-overlay.sh`).
+4. **deploy dev** pins `manifests/pitch/overlays/dev` to `<sha>` (home-k8s-lab's `scripts/deploy-image.sh`).
 5. **deploy prod** runs only when step 2 cut a release, and pins `overlays/prod` to `X.Y.Z`.
 
 ## Cutting a release
@@ -31,4 +31,6 @@ Revert the `chore(pitch): deploy … to prod` commit in home-k8s-lab (or set an 
 
 - Secret `HOME_K8S_LAB_TOKEN`: a fine-grained PAT with **Contents: read and write** on `paguos/home-k8s-lab` only.
 - Settings → Actions → General → enable **"Allow GitHub Actions to create and approve pull requests"** (release-please opens its PR with `GITHUB_TOKEN`).
+- Settings → General → **"Automatically delete head branches"**.
+- Trunk-based: `main` is the only long-lived branch. Feature PRs target `main`, and PR titles must be Conventional Commits (squash merge).
 - PRs opened with `GITHUB_TOKEN` don't trigger workflows, so CI won't run on the release PR itself. That's fine: it only touches the version files and changelog, and the merge to `main` runs the full pipeline.
