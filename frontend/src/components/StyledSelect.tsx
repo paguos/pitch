@@ -185,7 +185,7 @@ export function StyledSelect({
               : 'border-hairline hover:border-pitch/40 focus:border-pitch/60',
         ].join(' ')}
       >
-        <span className={`flex items-center gap-2 min-w-0 ${selected ? '' : 'text-bone/50'}`}>
+        <span className={`flex items-center gap-2 min-w-0 ${selected ? '' : 'text-bone/60'}`}>
           {selected && selected.iconUrl !== undefined && (
             <TeamCrest name={selected.label} logoUrl={selected.iconUrl} size="xs" />
           )}
@@ -301,7 +301,7 @@ export function StyledSelect({
               </li>
             ))}
             {flat.length === 0 && (
-              <li className="px-3 py-3 font-mono text-[12px] uppercase tracking-widest2 text-bone/50">
+              <li className="px-3 py-3 font-mono text-[12px] uppercase tracking-widest2 text-bone/60">
                 — empty —
               </li>
             )}

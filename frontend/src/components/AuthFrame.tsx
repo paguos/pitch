@@ -34,10 +34,7 @@ export function AuthFrame({ title, children }: { title: string; children: ReactN
     <div className="relative min-h-full flex items-center justify-center px-6 py-16 overflow-hidden">
       <PitchMarkings />
       <main className="relative w-full max-w-sm">
-        <div className="flex items-baseline gap-3">
-          <span className="font-display text-7xl leading-none text-bone">PITCH</span>
-          <span className="font-mono text-[11px] uppercase tracking-widest2 text-pitch">console</span>
-        </div>
+        <span className="block font-display text-7xl leading-none text-bone">PITCH</span>
         <div className="mt-8 bg-ash/90 border border-hairline p-7 backdrop-blur-sm">
           <h1 className="font-display text-4xl leading-none text-bone">{title}</h1>
           {children}

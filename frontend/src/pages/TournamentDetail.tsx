@@ -152,7 +152,7 @@ export default function TournamentDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
+      <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto no-scrollbar">
         {tabs.map(({ key, label }) => {
           const active = tab === key;
           return (
@@ -590,7 +590,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
             </>
           ) : reported ? (
             <div className="font-display text-3xl text-pitch number-display tracking-wider">
-              {m.home_goals}<span className="text-bone/45 px-1.5">·</span>{m.away_goals}
+              {m.home_goals}<span className="text-bone/60 px-1.5">·</span>{m.away_goals}
             </div>
           ) : (
             <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/55">vs</div>
@@ -661,7 +661,7 @@ function FixtureSide({ name, logo, player, goals, editing, onChange }: {
       ) : goals != null ? (
         <span className="font-display text-2xl text-pitch number-display">{goals}</span>
       ) : (
-        <span className="font-mono text-[12px] text-bone/40">—</span>
+        <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
   );
@@ -1004,7 +1004,7 @@ function BracketSide({
         {isTBD && <span className="inline-block h-6 w-6 rounded-full border border-dashed border-hairline shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className={`font-display text-lg leading-none truncate ${winner ? '' : ''}`}>
-            {isTBD ? <span className="text-bone/50">— TBD —</span> : name}
+            {isTBD ? <span className="text-bone/60">— TBD —</span> : name}
           </div>
           {!isTBD && player && (
             <div className="mt-1 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
@@ -1026,7 +1026,7 @@ function BracketSide({
       ) : goals != null ? (
         <span className={`font-display text-xl number-display ${winner ? 'text-pitch' : 'text-bone/65'}`}>{goals}</span>
       ) : (
-        <span className="font-mono text-[12px] text-bone/40">—</span>
+        <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
   );
@@ -1400,7 +1400,7 @@ function QuickDrawModal({
                   <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
                   <span className="text-[14px] text-bone flex-1 truncate">{t.name}</span>
                   {t.kind === 'club' && (
-                    <span className="font-mono text-[11px] text-bone/45 shrink-0 truncate max-w-[40%]">{t.league}</span>
+                    <span className="font-mono text-[11px] text-bone/60 shrink-0 truncate max-w-[40%]">{t.league}</span>
                   )}
                 </CheckRow>
               ))}

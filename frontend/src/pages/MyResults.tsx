@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, MyMatch, MyResult } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { Badge, Card, Eyebrow, Stat } from '../components/ui';
+import { Badge, Card, Stat } from '../components/ui';
 import { TeamCrest } from '../components/TeamCrest';
 
 type Outcome = 'W' | 'D' | 'L' | null;
@@ -38,8 +38,7 @@ export default function MyResultsPage() {
   return (
     <div>
       <div className="mb-10">
-        <Eyebrow accent="pitch">/ {user?.player_name ?? 'results'}</Eyebrow>
-        <h1 className="font-display text-6xl leading-none text-bone mt-2">MY RESULTS</h1>
+        <h1 className="font-display text-6xl leading-none text-bone">MY RESULTS</h1>
       </div>
 
       {err && <div className="text-coral font-mono text-xs mb-4">{err}</div>}
@@ -80,7 +79,7 @@ function ResultCard({ r }: { r: MyResult }) {
           </div>
         </div>
         {s && (
-          <div className="grid grid-cols-4 gap-6">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-4 w-full sm:w-auto">
             <Stat label="place" value={r.position ? ordinal(r.position) : '—'} accent="pitch" />
             <Stat label="record" value={`${s.Won}-${s.Drawn}-${s.Lost}`} />
             <Stat label="goal diff" value={s.GoalDiff > 0 ? `+${s.GoalDiff}` : String(s.GoalDiff)} />
@@ -97,15 +96,21 @@ function ResultCard({ r }: { r: MyResult }) {
         <ul>
           {r.matches.map(m => {
             const o = outcome(m);
+            const played = m.home_goals != null && m.away_goals != null;
+            const opponent = m.is_home ? m.away_name : m.home_name;
+            const mine = m.is_home ? m.home_goals : m.away_goals;
+            const theirs = m.is_home ? m.away_goals : m.home_goals;
             return (
-              <li key={m.id} className="flex items-center gap-4 px-5 py-3 border-b border-hairline last:border-0">
-                <span className="w-20 shrink-0 whitespace-nowrap font-mono text-[11px] uppercase tracking-widest2 text-bone/55">round {m.round}</span>
-                <span className={`flex-1 text-right truncate text-[14px] ${m.is_home ? 'text-bone' : 'text-bone/70'}`}>{m.home_name}</span>
-                <span className="w-16 text-center font-display text-2xl number-display text-bone">
-                  {m.home_goals != null && m.away_goals != null ? `${m.home_goals}–${m.away_goals}` : <span className="font-mono text-[12px] text-bone/50">vs</span>}
+              <li key={m.id} className="flex items-center gap-3 sm:gap-4 px-5 py-3 border-b border-hairline last:border-0">
+                <span className="w-16 sm:w-20 shrink-0 whitespace-nowrap font-mono text-[11px] uppercase tracking-widest2 text-bone/60">round {m.round}</span>
+                <span className="flex-1 min-w-0 truncate text-[14px] text-bone" title={`${m.is_home ? 'vs' : 'at'} ${opponent}`}>
+                  <span className="font-mono text-[11px] uppercase tracking-widest2 text-bone/60 mr-2">{m.is_home ? 'vs' : 'at'}</span>
+                  {opponent}
                 </span>
-                <span className={`flex-1 truncate text-[14px] ${m.is_home ? 'text-bone/70' : 'text-bone'}`}>{m.away_name}</span>
-                <span className="w-7 text-right">
+                <span className="w-14 shrink-0 text-center font-display text-2xl number-display text-bone">
+                  {played ? `${mine}–${theirs}` : <span className="font-mono text-[12px] text-bone/60">—</span>}
+                </span>
+                <span className="w-6 shrink-0">
                   {o && (
                     <span className={`inline-flex w-6 h-6 items-center justify-center border font-mono text-[12px] ${OUTCOME_STYLE[o]}`} aria-label={o === 'W' ? 'win' : o === 'L' ? 'loss' : 'draw'}>
                       {o}

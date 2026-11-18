@@ -23,7 +23,7 @@ export default function PlayersPage() {
 
   return (
     <div>
-      <div className="flex flex-wrap items-end justify-between gap-y-4 mb-10">
+      <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-4 mb-10">
         <div>
           <Eyebrow accent="pitch">/ roster</Eyebrow>
           <h1 className="font-display text-6xl leading-none text-bone mt-2">
@@ -70,7 +70,7 @@ export default function PlayersPage() {
               </div>
               <div className={isAdmin ? 'col-span-2' : 'col-span-8'}>
                 <div className="flex items-baseline gap-2 sm:block">
-                  <span className="sm:hidden font-mono text-[12px] text-bone/40 number-display">
+                  <span className="sm:hidden font-mono text-[12px] text-bone/60 number-display">
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span className="font-display text-2xl text-bone leading-none">
@@ -80,13 +80,13 @@ export default function PlayersPage() {
               </div>
               {isAdmin && (
                 <div className="col-span-3 font-mono text-[13px] text-bone/80 truncate">
-                  {p.email || <span className="text-bone/40">—</span>}
+                  {p.email || <span className="text-bone/60">—</span>}
                 </div>
               )}
               {isAdmin && (
                 <div className="col-span-2 flex flex-wrap items-center gap-x-3 gap-y-1" data-testid={`player-access-${p.display_name}`}>
                   {!p.email ? (
-                    <span className="text-[12px] text-bone/45">add an email to give access</span>
+                    <span className="text-[12px] text-bone/60">add an email to give access</span>
                   ) : (
                     <>
                       <Badge tone={p.role === 'admin' ? 'coral' : 'neutral'}>
@@ -123,7 +123,7 @@ export default function PlayersPage() {
                 >
                   delete
                 </button>
-                <span className="sm:hidden font-mono text-[11px] text-bone/40 number-display ml-auto">
+                <span className="sm:hidden font-mono text-[11px] text-bone/60 number-display ml-auto">
                   {new Date(p.created_at).toISOString().slice(0, 10)}
                 </span>
               </div>

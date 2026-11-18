@@ -87,7 +87,7 @@ export default function TournamentList() {
               </div>
               <div className="col-span-5">
                 <div className="flex items-baseline gap-2 sm:block">
-                  <span className="sm:hidden font-mono text-[12px] text-bone/40 number-display">
+                  <span className="sm:hidden font-mono text-[12px] text-bone/60 number-display">
                     {String(i + 1).padStart(2, '0')}
                   </span>
                   <span className="font-display text-2xl leading-none text-bone group-hover:text-pitch transition-colors">
@@ -98,7 +98,7 @@ export default function TournamentList() {
               <div className="flex items-center gap-3 sm:hidden">
                 <span className="font-mono text-[11px] uppercase tracking-widest text-bone/60">{t.format}</span>
                 <Badge tone={statusTone(t.status) as any}>{t.status}</Badge>
-                <span className="font-mono text-[11px] text-bone/50 number-display">
+                <span className="font-mono text-[11px] text-bone/60 number-display">
                   {new Date(t.created_at).toISOString().slice(0, 10)}
                 </span>
               </div>
