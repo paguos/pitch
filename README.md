@@ -4,8 +4,8 @@
 
 A self-hosted tournament organizer for FIFA-style 1v1 contests. This iteration
 supports both **league** (round robin) and **knockout** (single elimination)
-formats — and is intentionally **auth-less**: there is no login. Anyone with
-access to the console can create players, run tournaments, and report scores.
+formats. Everything sits behind a sign-in: an **admin** runs the show, and
+players sign in with Google to follow their results (read-only).
 
 ## Quickstart
 
@@ -31,17 +31,39 @@ A handful of starter players (Alice, Bob, Carol, Dave) are seeded by migration
 `0004_seed_players.sql`, so the app is immediately usable. If those names
 already exist, the seed is skipped.
 
-## No auth · pick a player when adding them
+## Sign-in and roles
 
-There is no authentication in this iteration, and there is **no global "acting
-player"** either. When you add someone to a tournament, the join form lets you
+- **First run:** a fresh app (no admin yet) opens on a setup screen where you
+  choose the password for the `admin` account. That is the only time the
+  screen appears. On a deployed instance, open it right after the first deploy.
+- **Admin** can change anything: players, tournaments, scores. Admins can also
+  give admin rights to other players (Players tab → *make admin*). The last
+  admin can't be removed, and you can't remove your own rights.
+- **Players** sign in with Google. To let someone in, an admin sets their
+  **email** on their player (Players tab → edit). Only that Google account can
+  sign in as them; they land as a read-only **viewer**, see every tournament,
+  and get a **My results** page with their matches and standing. Changing the
+  player's email signs them out and unlinks the Google account.
+- **Lost the admin password?** Run
+  `NEW_ADMIN_PASSWORD='…' /app/server reset-admin-password` inside the backend
+  container (`docker compose exec -e NEW_ADMIN_PASSWORD=… backend /app/server reset-admin-password`,
+  or `kubectl exec` on the cluster). It also signs the admin out everywhere.
+- **Local dev** uses a fake Google page (`GOOGLE_PROVIDER=fake`, dev only):
+  type the email to sign in as. To try the real flow, set
+  `GOOGLE_PROVIDER=google`, `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, and
+  register `http://localhost:5173/api/auth/google/callback` on the Google OAuth
+  client.
+
+## Pick a player when adding them
+
+There is **no global "acting player"**. When you add someone to a tournament, the join form lets you
 pick **which player** (from the players list) and **which team** right there
 in the form. There's no header dropdown to switch identities, no
 `localStorage` flag, no `actor_player_id` on requests.
 
 Concretely:
 
-- `POST /tournaments` takes just `{name, format}` — anyone can create.
+- `POST /tournaments` takes just `{name, format}` (admin only).
 - `POST /tournaments/{id}/participants` takes `{player_id, team_id}` — the
   player is selected explicitly per add, so the same browser can add many
   players to the same tournament.
@@ -51,7 +73,7 @@ Concretely:
 - `PUT /matches/{id}/score` takes `{home_goals, away_goals, version}` — no
   actor attribution.
 
-This is deliberately not a security model. See "Future work" for the auth story.
+Who may do what is decided by the signed-in user's role, not by these fields.
 
 ## Players
 
@@ -112,10 +134,8 @@ for reproducible end-to-end smoke tests.
 
 ## Future work
 
-- **Real authentication.** Today there is no login and no concept of an acting
-  player — anyone can join and submit scores. A future iteration should add
-  proper auth (magic link, OIDC, or similar) and gate write endpoints behind
-  a session.
+- **More roles.** There are two: `admin` and read-only `viewer`. A role that
+  can report scores for their own matches would be a natural next step.
 - **Real-time updates** — currently the UI re-fetches on user action. WebSocket
   or SSE push is left for later.
 - **Match attribution** — the backend accepts `updated_by_player_id` on score
@@ -133,7 +153,7 @@ for reproducible end-to-end smoke tests.
 backend/        Go service
   cmd/server/   main + embedded migration runner
   internal/
-    api/        HTTP handlers (no auth)
+    api/        HTTP handlers + auth middleware
     config/     env config
     knockout/   pure bracket builder (unit-tested)
     league/     pure scheduler + standings (unit-tested)

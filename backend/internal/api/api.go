@@ -1,10 +1,12 @@
 // Package api wires HTTP handlers. Handlers are thin: parse, call store, encode.
-// No authentication: every endpoint is unauthenticated. There is no global
-// "acting player" — endpoints that need to attribute a participant action take
-// the player_id explicitly in the request body or path.
+// Every route except /healthz and /auth/* requires a signed-in session; writes
+// additionally require the admin role (see auth.go and the route table in New).
+// Endpoints that attribute a participant action still take the player_id
+// explicitly in the request body or path.
 package api
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
@@ -12,7 +14,9 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/fifa-tournament/backend/internal/auth"
 	"github.com/fifa-tournament/backend/internal/config"
 	"github.com/fifa-tournament/backend/internal/knockout"
 	"github.com/fifa-tournament/backend/internal/league"
@@ -26,42 +30,72 @@ import (
 type API struct {
 	Cfg   config.Config
 	Store *store.Store
+	// Provider returns the Google sign-in provider, or an error when Google
+	// sign-in is not configured or unreachable. May be nil (admin login only).
+	Provider func(ctx context.Context) (auth.Provider, error)
+
+	loginLimiter *auth.Limiter
+	dummyHash    string // verified against when the username is unknown, to even out timing
 }
 
-func New(cfg config.Config, st *store.Store) http.Handler {
-	a := &API{Cfg: cfg, Store: st}
+func New(cfg config.Config, st *store.Store, provider func(ctx context.Context) (auth.Provider, error)) http.Handler {
+	a := &API{Cfg: cfg, Store: st, Provider: provider, loginLimiter: auth.NewLimiter(10, 15*time.Minute)}
+	a.dummyHash, _ = auth.HashPassword("not-a-real-password")
+
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID, middleware.RealIP, middleware.Recoverer)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins: []string{cfg.FrontendOrigin},
-		AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
-		AllowedHeaders: []string{"Content-Type"},
-		MaxAge:         300,
+		AllowedOrigins:   []string{cfg.FrontendOrigin},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           300,
 	}))
+	r.Use(a.originCheck, a.loadUser)
 
+	// Public.
 	r.Get("/healthz", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(200)
 		w.Write([]byte("ok"))
 	})
+	r.Get("/auth/status", a.AuthStatus)
+	r.Post("/auth/setup", a.Setup)
+	r.Post("/auth/login", a.Login)
+	r.Post("/auth/logout", a.Logout)
+	r.Get("/auth/google/start", a.GoogleStart)
+	r.Get("/auth/google/callback", a.GoogleCallback)
+	if cfg.GoogleProvider == "fake" {
+		r.Get("/auth/google/fake", a.fakeGooglePage)
+	}
 
-	r.Get("/teams", a.ListTeams)
+	// Signed-in users (viewers and admins): read-only.
+	r.Group(func(r chi.Router) {
+		r.Use(a.requireUser)
+		r.Get("/me/results", a.MyResults)
+		r.Get("/teams", a.ListTeams)
+		r.Get("/players", a.ListPlayers)
+		r.Get("/players/{id}", a.GetPlayer)
+		r.Get("/tournaments", a.ListTournaments)
+		r.Get("/tournaments/{id}", a.GetTournament)
 
-	r.Get("/players", a.ListPlayers)
-	r.Post("/players", a.CreatePlayer)
-	r.Get("/players/{id}", a.GetPlayer)
-	r.Patch("/players/{id}", a.UpdatePlayer)
-	r.Delete("/players/{id}", a.DeletePlayer)
+		// Admin only: everything that changes data.
+		r.Group(func(r chi.Router) {
+			r.Use(a.requireAdmin)
+			r.Post("/players", a.CreatePlayer)
+			r.Patch("/players/{id}", a.UpdatePlayer)
+			r.Put("/players/{id}/role", a.SetPlayerRole)
+			r.Delete("/players/{id}", a.DeletePlayer)
 
-	r.Get("/tournaments", a.ListTournaments)
-	r.Post("/tournaments", a.CreateTournament)
-	r.Get("/tournaments/{id}", a.GetTournament)
-	r.Post("/tournaments/{id}/participants", a.JoinTournament)
-	r.Delete("/tournaments/{id}/participants/{playerID}", a.LeaveTournament)
-	r.Patch("/tournaments/{id}/participants/{playerID}", a.ChangeTeam)
-	r.Post("/tournaments/{id}/copy", a.CopyTournament)
-	r.Post("/tournaments/{id}/start", a.StartTournament)
-	r.Post("/tournaments/{id}/end", a.EndTournament)
-	r.Put("/matches/{id}/score", a.SubmitScore)
+			r.Post("/tournaments", a.CreateTournament)
+			r.Post("/tournaments/{id}/participants", a.JoinTournament)
+			r.Delete("/tournaments/{id}/participants/{playerID}", a.LeaveTournament)
+			r.Patch("/tournaments/{id}/participants/{playerID}", a.ChangeTeam)
+			r.Post("/tournaments/{id}/copy", a.CopyTournament)
+			r.Post("/tournaments/{id}/start", a.StartTournament)
+			r.Post("/tournaments/{id}/end", a.EndTournament)
+			r.Put("/matches/{id}/score", a.SubmitScore)
+		})
+	})
 
 	return r
 }
@@ -93,6 +127,10 @@ func (a *API) ListPlayers(w http.ResponseWriter, r *http.Request) {
 	if players == nil {
 		players = []store.Player{}
 	}
+	u, _ := userFrom(r.Context())
+	for i := range players {
+		players[i] = redactPlayer(players[i], u)
+	}
 	writeJSON(w, 200, players)
 }
 
@@ -114,6 +152,10 @@ func (a *API) CreatePlayer(w http.ResponseWriter, r *http.Request) {
 	}
 	email := normalizeEmail(body.Email)
 	p, err := a.Store.CreatePlayer(r.Context(), body.DisplayName, email)
+	if errors.Is(err, store.ErrEmailTaken) {
+		writeErr(w, 409, err.Error())
+		return
+	}
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -136,7 +178,8 @@ func (a *API) GetPlayer(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	writeJSON(w, 200, p)
+	u, _ := userFrom(r.Context())
+	writeJSON(w, 200, redactPlayer(p, u))
 }
 
 type updatePlayerBody struct {
@@ -178,6 +221,10 @@ func (a *API) UpdatePlayer(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 404, "not found")
 		return
 	}
+	if errors.Is(err, store.ErrEmailTaken) || errors.Is(err, store.ErrAdminNeedsEmail) {
+		writeErr(w, 409, err.Error())
+		return
+	}
 	if err != nil {
 		writeErr(w, 500, err.Error())
 		return
@@ -198,6 +245,9 @@ func (a *API) DeletePlayer(w http.ResponseWriter, r *http.Request) {
 		return
 	case errors.Is(err, store.ErrPlayerInUse):
 		writeErr(w, 409, "cannot delete: player is referenced by one or more tournaments")
+		return
+	case errors.Is(err, store.ErrLastAdmin):
+		writeErr(w, 409, err.Error())
 		return
 	case err != nil:
 		writeErr(w, 500, err.Error())
@@ -307,6 +357,9 @@ func (a *API) ListTournaments(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
+	if ts == nil {
+		ts = []store.Tournament{} // an empty list, not JSON null
+	}
 	writeJSON(w, 200, ts)
 }
 
@@ -342,30 +395,7 @@ func (a *API) GetTournament(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, 500, err.Error())
 		return
 	}
-	var standings []league.Row
-	if t.Status != "DRAFT" && t.Format == "league" {
-		refs := make([]league.ParticipantRef, len(parts))
-		for i, p := range parts {
-			refs[i] = league.ParticipantRef{ID: p.ID.String(), Name: p.TeamName}
-		}
-		results := make([]league.MatchResult, 0, len(matches))
-		for _, m := range matches {
-			if m.HomeParticipantID == nil || m.AwayParticipantID == nil {
-				continue
-			}
-			r := league.MatchResult{
-				HomeID: m.HomeParticipantID.String(),
-				AwayID: m.AwayParticipantID.String(),
-			}
-			if m.Status == "REPORTED" && m.HomeGoals != nil && m.AwayGoals != nil {
-				r.HomeGoals = *m.HomeGoals
-				r.AwayGoals = *m.AwayGoals
-				r.Reported = true
-			}
-			results = append(results, r)
-		}
-		standings = league.Standings(refs, results)
-	}
+	standings := computeStandings(t, parts, matches)
 	writeJSON(w, 200, tournamentDetail{Tournament: t, Participants: parts, Matches: matches, Standings: standings})
 }
 
@@ -673,4 +703,32 @@ func (a *API) SubmitScore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, m)
+}
+
+// computeStandings returns league standings, or nil for drafts and knockouts.
+func computeStandings(t store.Tournament, parts []store.Participant, matches []store.Match) []league.Row {
+	if t.Status == "DRAFT" || t.Format != "league" {
+		return nil
+	}
+	refs := make([]league.ParticipantRef, len(parts))
+	for i, p := range parts {
+		refs[i] = league.ParticipantRef{ID: p.ID.String(), Name: p.TeamName}
+	}
+	results := make([]league.MatchResult, 0, len(matches))
+	for _, m := range matches {
+		if m.HomeParticipantID == nil || m.AwayParticipantID == nil {
+			continue
+		}
+		r := league.MatchResult{
+			HomeID: m.HomeParticipantID.String(),
+			AwayID: m.AwayParticipantID.String(),
+		}
+		if m.Status == "REPORTED" && m.HomeGoals != nil && m.AwayGoals != nil {
+			r.HomeGoals = *m.HomeGoals
+			r.AwayGoals = *m.AwayGoals
+			r.Reported = true
+		}
+		results = append(results, r)
+	}
+	return league.Standings(refs, results)
 }

@@ -102,7 +102,7 @@ export function Button({
 export function Input({ className = '', ...rest }: React.InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
-      className={`w-full bg-transparent border-b border-hairline focus:border-pitch outline-none py-2 text-bone placeholder-bone/30 font-sans ${className}`}
+      className={`w-full bg-transparent border-b border-hairline focus:border-pitch outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch py-2 text-bone placeholder-bone/55 font-sans ${className}`}
       {...rest}
     />
   );
@@ -111,7 +111,7 @@ export function Input({ className = '', ...rest }: React.InputHTMLAttributes<HTM
 export function Select({ className = '', children, ...rest }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
-      className={`bg-ash border border-hairline text-bone px-3 py-2 font-mono text-[13px] uppercase tracking-widest2 focus:border-pitch outline-none ${className}`}
+      className={`bg-ash border border-hairline text-bone px-3 py-2 font-mono text-[13px] uppercase tracking-widest2 focus:border-pitch outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch ${className}`}
       {...rest}
     >
       {children}

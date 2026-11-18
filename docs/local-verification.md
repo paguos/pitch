@@ -1,5 +1,9 @@
 # Local Verification — auth-less iteration
 
+> **Historical.** This transcript was recorded before sign-in existed. The API
+> now requires a session, so replaying the `curl` calls below needs a login
+> first. `scripts/golden-path*.sh` do that: run them with `ADMIN_PASSWORD` set.
+
 Captured 2026-05-14. Reproduce with:
 
 ```bash

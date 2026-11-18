@@ -1,10 +1,19 @@
 #!/usr/bin/env bash
-# End-to-end golden path (auth-less): create two players, draft a league,
+# End-to-end golden path (signs in as admin): create two players, draft a league,
 # add both players (with teams) as participants, start, record a score,
 # fetch standings. Output is shown as request/response.
 set -euo pipefail
 
 BASE="${BASE:-http://localhost:8080}"
+
+# Sign in as the default admin (set ADMIN_PASSWORD; run first-run setup in the UI
+# once). Every curl below reuses this cookie jar.
+: "${ADMIN_PASSWORD:?set ADMIN_PASSWORD to the admin password}"
+JAR="$(mktemp)"; trap 'rm -f "$JAR"' EXIT
+curl() { command curl -b "$JAR" -c "$JAR" "$@"; }
+curl -sS -f -H 'Content-Type: application/json' \
+  -d "{\"username\":\"admin\",\"password\":\"$ADMIN_PASSWORD\"}" \
+  "$BASE/auth/login" >/dev/null
 
 show() { printf "\n\033[1;32m▸ %s\033[0m\n" "$*"; }
 
@@ -25,7 +34,7 @@ curl -sS "$BASE/teams?league=La%20Liga" | jq '.[0:3]'
 TEAM_A=$(curl -sS "$BASE/teams?league=La%20Liga"       | jq -r '.[0].id')
 TEAM_B=$(curl -sS "$BASE/teams?league=Premier%20League"| jq -r '.[0].id')
 
-show "3. Create a league tournament (no actor — anyone can create)"
+show "3. Create a league tournament (as admin)"
 TID=$(curl -sS -H 'Content-Type: application/json' \
   -d "{\"name\":\"Friday Night Cup $RANDOM\",\"format\":\"league\"}" \
   "$BASE/tournaments" | tee /dev/stderr | jq -r .id)

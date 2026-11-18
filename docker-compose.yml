@@ -23,6 +23,11 @@ services:
       DATABASE_URL: postgres://fifa:fifa@db:5432/fifa?sslmode=disable
       PORT: "8080"
       FRONTEND_ORIGIN: http://localhost:5173
+      # The app is served at :5173 (the Vite server proxies /api to this
+      # backend). Local sign-in uses a fake Google page; set GOOGLE_PROVIDER to
+      # google and add GOOGLE_CLIENT_ID/SECRET to test the real flow.
+      PUBLIC_BASE_URL: http://localhost:5173
+      GOOGLE_PROVIDER: fake
     depends_on:
       db:
         condition: service_healthy
@@ -33,7 +38,8 @@ services:
     build:
       context: ./frontend
     environment:
-      VITE_API_BASE: http://localhost:8080
+      VITE_API_BASE: /api
+      API_PROXY_TARGET: http://backend:8080
     ports:
       - "5173:5173"
     depends_on:

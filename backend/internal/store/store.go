@@ -38,13 +38,22 @@ type Player struct {
 	Email       *string   `json:"email"`
 	DisplayName string    `json:"display_name"`
 	CreatedAt   time.Time `json:"created_at"`
+	// Role is "admin" or "viewer" once the player has an account row, nil
+	// before. SignedIn is true once they have signed in with Google.
+	Role     *string `json:"role"`
+	SignedIn bool    `json:"signed_in"`
+}
+
+const playerSelect = `
+	SELECT p.id, p.email, p.display_name, p.created_at, u.role, COALESCE(u.google_sub IS NOT NULL, false)
+	FROM players p LEFT JOIN users u ON u.player_id = p.id`
+
+func scanPlayer(row pgx.Row, p *Player) error {
+	return row.Scan(&p.ID, &p.Email, &p.DisplayName, &p.CreatedAt, &p.Role, &p.SignedIn)
 }
 
 func (s *Store) ListPlayers(ctx context.Context) ([]Player, error) {
-	rows, err := s.DB.Query(ctx, `
-		SELECT id, email, display_name, created_at
-		FROM players ORDER BY created_at ASC
-	`)
+	rows, err := s.DB.Query(ctx, playerSelect+` ORDER BY p.created_at ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +61,7 @@ func (s *Store) ListPlayers(ctx context.Context) ([]Player, error) {
 	var out []Player
 	for rows.Next() {
 		var p Player
-		if err := rows.Scan(&p.ID, &p.Email, &p.DisplayName, &p.CreatedAt); err != nil {
+		if err := scanPlayer(rows, &p); err != nil {
 			return nil, err
 		}
 		out = append(out, p)
@@ -62,8 +71,7 @@ func (s *Store) ListPlayers(ctx context.Context) ([]Player, error) {
 
 func (s *Store) GetPlayer(ctx context.Context, id uuid.UUID) (Player, error) {
 	var p Player
-	err := s.DB.QueryRow(ctx, `SELECT id, email, display_name, created_at FROM players WHERE id=$1`, id).
-		Scan(&p.ID, &p.Email, &p.DisplayName, &p.CreatedAt)
+	err := scanPlayer(s.DB.QueryRow(ctx, playerSelect+` WHERE p.id=$1`, id), &p)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return p, ErrNotFound
 	}
@@ -71,19 +79,57 @@ func (s *Store) GetPlayer(ctx context.Context, id uuid.UUID) (Player, error) {
 }
 
 func (s *Store) CreatePlayer(ctx context.Context, displayName string, email *string) (Player, error) {
-	var p Player
+	var id uuid.UUID
 	err := s.DB.QueryRow(ctx, `
 		INSERT INTO players (display_name, email)
 		VALUES ($1, $2)
-		RETURNING id, email, display_name, created_at
-	`, displayName, email).Scan(&p.ID, &p.Email, &p.DisplayName, &p.CreatedAt)
-	return p, err
+		RETURNING id
+	`, displayName, email).Scan(&id)
+	if isUniqueViolation(err) {
+		return Player{}, ErrEmailTaken
+	}
+	if err != nil {
+		return Player{}, err
+	}
+	return s.GetPlayer(ctx, id)
 }
 
+func isUniqueViolation(err error) bool {
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation
+}
+
+// UpdatePlayer applies a partial update. Changing or clearing the email
+// unlinks the player's Google account and ends their sessions (their role is
+// kept), so access never follows a stale email. An admin player's email cannot
+// be cleared, since that would leave an admin who cannot sign in.
 func (s *Store) UpdatePlayer(ctx context.Context, id uuid.UUID, displayName *string, email *string, clearEmail bool) (Player, error) {
-	// We allow partial updates. Build the SET clause dynamically only across
-	// the two columns we accept.
-	var p Player
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return Player{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	var oldEmail *string
+	err = tx.QueryRow(ctx, `SELECT email FROM players WHERE id=$1 FOR UPDATE`, id).Scan(&oldEmail)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Player{}, ErrNotFound
+	}
+	if err != nil {
+		return Player{}, err
+	}
+
+	if clearEmail && oldEmail != nil {
+		var isAdmin bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM users WHERE player_id=$1 AND role='admin')`, id).Scan(&isAdmin); err != nil {
+			return Player{}, err
+		}
+		if isAdmin {
+			return Player{}, ErrAdminNeedsEmail
+		}
+	}
+
+	// Build the SET clause dynamically across the two columns we accept.
 	q := `UPDATE players SET `
 	args := []any{}
 	sep := ""
@@ -100,17 +146,32 @@ func (s *Store) UpdatePlayer(ctx context.Context, id uuid.UUID, displayName *str
 		q += sep + "email=NULL"
 		sep = ", "
 	}
-	if sep == "" {
-		// Nothing to update; return current row.
-		return s.GetPlayer(ctx, id)
+	if sep != "" {
+		args = append(args, id)
+		q += " WHERE id=$" + itoa(len(args))
+		if _, err := tx.Exec(ctx, q, args...); err != nil {
+			if isUniqueViolation(err) {
+				return Player{}, ErrEmailTaken
+			}
+			return Player{}, err
+		}
 	}
-	args = append(args, id)
-	q += " WHERE id=$" + itoa(len(args)) + " RETURNING id, email, display_name, created_at"
-	err := s.DB.QueryRow(ctx, q, args...).Scan(&p.ID, &p.Email, &p.DisplayName, &p.CreatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return p, ErrNotFound
+
+	emailChanged := (email != nil && (oldEmail == nil || *oldEmail != *email)) || (clearEmail && oldEmail != nil)
+	if emailChanged {
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE player_id=$1)
+		`, id); err != nil {
+			return Player{}, err
+		}
+		if _, err := tx.Exec(ctx, `UPDATE users SET google_sub=NULL WHERE player_id=$1`, id); err != nil {
+			return Player{}, err
+		}
 	}
-	return p, err
+	if err := tx.Commit(ctx); err != nil {
+		return Player{}, err
+	}
+	return s.GetPlayer(ctx, id)
 }
 
 func (s *Store) DeletePlayer(ctx context.Context, id uuid.UUID) error {
@@ -130,14 +191,30 @@ func (s *Store) DeletePlayer(ctx context.Context, id uuid.UUID) error {
 	if refs > 0 {
 		return ErrPlayerInUse
 	}
-	tag, err := s.DB.Exec(ctx, `DELETE FROM players WHERE id=$1`, id)
+	// Deleting a player cascades to their account; never remove the last admin.
+	tx, err := s.DB.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+	var admins int
+	var targetIsAdmin bool
+	if err := tx.QueryRow(ctx, `
+		SELECT COUNT(*), COALESCE(bool_or(player_id=$1), false) FROM users WHERE role='admin'
+	`, id).Scan(&admins, &targetIsAdmin); err != nil {
+		return err
+	}
+	if targetIsAdmin && admins <= 1 {
+		return ErrLastAdmin
+	}
+	tag, err := tx.Exec(ctx, `DELETE FROM players WHERE id=$1`, id)
 	if err != nil {
 		return err
 	}
 	if tag.RowsAffected() == 0 {
 		return ErrNotFound
 	}
-	return nil
+	return tx.Commit(ctx)
 }
 
 // itoa avoids importing strconv just for tiny ints used in dynamic SQL.

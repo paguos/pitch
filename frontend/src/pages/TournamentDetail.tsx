@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
 import { StyledSelect, StyledOption } from '../components/StyledSelect';
@@ -10,6 +11,7 @@ type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -84,12 +86,14 @@ export default function TournamentDetailPage() {
             <span className="font-mono text-[12px] text-bone/60 number-display">
               created {new Date(t.created_at).toISOString().slice(0,10)}
             </span>
-            <button
-              onClick={() => setCopying(true)}
-              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
-            >
-              copy →
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => setCopying(true)}
+                className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
+              >
+                copy →
+              </button>
+            )}
           </div>
         </div>
 
@@ -112,7 +116,7 @@ export default function TournamentDetailPage() {
       )}
 
       {/* Actions — hidden once the tournament is completed */}
-      {t.status !== 'COMPLETED' && (
+      {isAdmin && t.status !== 'COMPLETED' && (
         <div className="mt-10 border-y border-hairline py-5">
           {t.status === 'DRAFT' ? (
             <div className="flex flex-wrap items-start gap-6">
@@ -148,7 +152,7 @@ export default function TournamentDetailPage() {
       )}
 
       {/* Tabs */}
-      <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto">
+      <div className="mt-10 flex gap-3 sm:gap-6 border-b border-hairline overflow-x-auto no-scrollbar">
         {tabs.map(({ key, label }) => {
           const active = tab === key;
           return (
@@ -435,8 +439,13 @@ function ParticipantsTab({
   isDraft: boolean;
   onRemoved: () => void;
 }) {
+  const { isAdmin } = useAuth();
   if (participants.length === 0) {
-    return <div className="text-bone/60 font-mono text-[13px]">No participants yet. Add the first one above.</div>;
+    return (
+      <div className="text-bone/60 font-mono text-[13px]">
+        {isAdmin ? 'No participants yet. Add the first one above.' : 'No participants yet.'}
+      </div>
+    );
   }
   return (
     <div className="grid md:grid-cols-2 gap-3">
@@ -450,7 +459,7 @@ function ParticipantsTab({
             <div className="font-display text-2xl text-bone leading-none truncate">{p.team_name}</div>
             <div className="label-eyebrow mt-1">manager · {p.player_name}</div>
           </div>
-          {isDraft && (
+          {isAdmin && isDraft && (
             <button
               type="button"
               className="font-mono text-[12px] uppercase tracking-widest2 text-coral/85 hover:text-coral"
@@ -519,6 +528,7 @@ function FixturesTab({ detail, onReport }: { detail: TournamentDetail; onReport:
 }
 
 function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer, onReport }: { m: Match; home: string; homeLogo: string | null; homePlayer: string | null; away: string; awayLogo: string | null; awayPlayer: string | null; onReport: () => void }) {
+  const { isAdmin } = useAuth();
   const [editing, setEditing] = useState(false);
   const [h, setH] = useState(m.home_goals ?? 0);
   const [a, setA] = useState(m.away_goals ?? 0);
@@ -548,11 +558,11 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
             </>
-          ) : (
+          ) : isAdmin ? (
             <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
               {reported ? 'edit' : 'score'} →
             </button>
-          )}
+          ) : null}
         </div>
         {err && <div className="text-coral font-mono text-xs">{err}</div>}
       </div>
@@ -580,7 +590,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
             </>
           ) : reported ? (
             <div className="font-display text-3xl text-pitch number-display tracking-wider">
-              {m.home_goals}<span className="text-bone/45 px-1.5">·</span>{m.away_goals}
+              {m.home_goals}<span className="text-bone/60 px-1.5">·</span>{m.away_goals}
             </div>
           ) : (
             <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/55">vs</div>
@@ -605,14 +615,14 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
             </>
-          ) : (
+          ) : isAdmin ? (
             <button
               className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
               onClick={() => setEditing(true)}
             >
               {reported ? 'edit' : 'score'} →
             </button>
-          )}
+          ) : null}
         </div>
 
         {err && <div className="col-span-12 text-coral font-mono text-xs">{err}</div>}
@@ -651,7 +661,7 @@ function FixtureSide({ name, logo, player, goals, editing, onChange }: {
       ) : goals != null ? (
         <span className="font-display text-2xl text-pitch number-display">{goals}</span>
       ) : (
-        <span className="font-mono text-[12px] text-bone/40">—</span>
+        <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
   );
@@ -810,6 +820,7 @@ function BracketTab({ detail, onReport }: { detail: TournamentDetail; onReport: 
 function BracketCard({
   m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer, onReport,
 }: { m: Match; home: string; homeLogo: string | null; homePlayer: string | null; away: string; awayLogo: string | null; awayPlayer: string | null; onReport: () => void }) {
+  const { isAdmin } = useAuth();
   const [editing, setEditing] = useState(false);
   const [h, setH] = useState(m.home_goals ?? 0);
   const [a, setA] = useState(m.away_goals ?? 0);
@@ -837,7 +848,7 @@ function BracketCard({
     <div className={`border ${completed ? 'border-pitch/30' : 'border-hairline'} bg-ash/40`}>
       <div className="px-4 py-2 border-b border-hairline flex items-center justify-between">
         <Badge tone={statusTone as any}>{m.status}</Badge>
-        {playable && !editing && (
+        {isAdmin && playable && !editing && (
           <button
             className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
             onClick={() => setEditing(true)}
@@ -993,7 +1004,7 @@ function BracketSide({
         {isTBD && <span className="inline-block h-6 w-6 rounded-full border border-dashed border-hairline shrink-0" />}
         <div className="min-w-0 flex-1">
           <div className={`font-display text-lg leading-none truncate ${winner ? '' : ''}`}>
-            {isTBD ? <span className="text-bone/50">— TBD —</span> : name}
+            {isTBD ? <span className="text-bone/60">— TBD —</span> : name}
           </div>
           {!isTBD && player && (
             <div className="mt-1 font-mono text-[11px] lowercase tracking-widest2 text-bone/60 truncate">
@@ -1015,7 +1026,7 @@ function BracketSide({
       ) : goals != null ? (
         <span className={`font-display text-xl number-display ${winner ? 'text-pitch' : 'text-bone/65'}`}>{goals}</span>
       ) : (
-        <span className="font-mono text-[12px] text-bone/40">—</span>
+        <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
   );
@@ -1389,7 +1400,7 @@ function QuickDrawModal({
                   <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
                   <span className="text-[14px] text-bone flex-1 truncate">{t.name}</span>
                   {t.kind === 'club' && (
-                    <span className="font-mono text-[11px] text-bone/45 shrink-0 truncate max-w-[40%]">{t.league}</span>
+                    <span className="font-mono text-[11px] text-bone/60 shrink-0 truncate max-w-[40%]">{t.league}</span>
                   )}
                 </CheckRow>
               ))}

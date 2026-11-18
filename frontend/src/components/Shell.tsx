@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
+import { useAuth } from '../lib/auth';
 
 // Baked in at image build time (Dockerfile.prod): a release version like
 // "0.2.0", a short git SHA for dev builds, or unset when running locally.
@@ -23,10 +24,11 @@ function getLocalTzLabel(d: Date): string {
   }
 }
 
-const NAV_LINKS = [
+const BASE_LINKS = [
   { to: '/', label: 'Tournaments', exact: true },
   { to: '/players', label: 'Players', exact: false },
 ];
+const MY_RESULTS_LINK = { to: '/me', label: 'My results', exact: false };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [hhmm, setHhmm] = useState<string>('');
@@ -34,6 +36,10 @@ export function Shell({ children }: { children: ReactNode }) {
   const [tz, setTz] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
+  const { user, isAdmin, signOut } = useAuth();
+  // The default admin isn't a player, so only players get a results page.
+  const NAV_LINKS = user?.player_id ? [...BASE_LINKS, MY_RESULTS_LINK] : BASE_LINKS;
+  const who = user?.player_name ?? user?.username ?? '';
 
   useEffect(() => {
     const tick = () => {
@@ -57,16 +63,30 @@ export function Shell({ children }: { children: ReactNode }) {
     <div className="min-h-full flex flex-col">
       <header className="border-b border-hairline">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center gap-6">
-          <Link to="/" className="flex items-baseline gap-2">
+          <Link to="/" className="flex items-baseline gap-2 shrink-0 whitespace-nowrap">
             <span className="font-display text-3xl text-bone leading-none">PITCH</span>
             <span className="font-mono text-[11px] uppercase tracking-widest2 text-pitch">/ console</span>
           </Link>
-          <nav className="hidden md:flex gap-5 ml-6 font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
-            <Link to="/" className="hover:text-pitch">Tournaments</Link>
-            <Link to="/players" className="hover:text-pitch">Players</Link>
+          <nav className="hidden md:flex gap-5 ml-6 whitespace-nowrap font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
+            {NAV_LINKS.map(({ to, label }) => (
+              <Link key={to} to={to} className="hover:text-pitch">{label}</Link>
+            ))}
           </nav>
           <div className="flex-1" />
-          <div className="hidden sm:flex items-center gap-3 pl-4 border-l border-hairline">
+          <div className="hidden sm:flex items-center gap-3 whitespace-nowrap" data-testid="session-chip">
+            <span className="font-mono text-[12px] text-bone/80 max-w-[10rem] truncate">{who}</span>
+            <span className={`font-mono text-[11px] uppercase tracking-widest2 ${isAdmin ? 'text-coral' : 'text-bone/55'}`}>
+              {isAdmin ? 'admin' : 'viewer'}
+            </span>
+            <button
+              onClick={() => signOut()}
+              data-testid="sign-out"
+              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
+            >
+              sign out
+            </button>
+          </div>
+          <div className="hidden lg:flex items-center gap-3 pl-4 border-l border-hairline">
             <span
               aria-hidden="true"
               className="relative inline-block h-1.5 w-1.5 rounded-full bg-pitch"
@@ -137,6 +157,18 @@ export function Shell({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
+          <div className="mt-auto px-6 py-5 border-t border-hairline">
+            <div className="font-mono text-[12px] text-bone/80 truncate">{who}</div>
+            <div className={`mt-1 font-mono text-[11px] uppercase tracking-widest2 ${isAdmin ? 'text-coral' : 'text-bone/55'}`}>
+              {isAdmin ? 'admin' : 'viewer'}
+            </div>
+            <button
+              onClick={() => signOut()}
+              className="mt-4 font-mono text-[12px] uppercase tracking-widest2 text-bone/70 hover:text-pitch"
+            >
+              sign out
+            </button>
+          </div>
         </div>
       </div>
 

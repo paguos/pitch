@@ -1,9 +1,15 @@
 # API Reference
 
-The backend exposes a small, unauthenticated JSON API on port `8080`.
-All routes are wired in `backend/internal/api/api.go`.
+The backend exposes a small JSON API on port `8080`. Every route except
+`/healthz` and `/auth/*` needs a signed-in session, and every write needs the
+`admin` role (see [Authentication](#authentication)). All routes are wired in
+`backend/internal/api/api.go`.
 
-Base URL in local dev: `http://localhost:8080`.
+The browser always reaches the API under `/api` on the app's own origin
+(nginx in production, the Vite proxy in dev), which strips the prefix before
+the request reaches the backend. The paths below are the backend's paths.
+Direct access, e.g. from the scripts in `scripts/`, uses
+`http://localhost:8080` and a cookie jar.
 
 ## Conventions
 
@@ -15,13 +21,81 @@ Base URL in local dev: `http://localhost:8080`.
 | Status | Meaning                                                                 |
 |--------|-------------------------------------------------------------------------|
 | 400    | malformed input (invalid JSON, missing required field, bad UUID)        |
+| 401    | not signed in (or the session expired)                                  |
+| 403    | signed in but not allowed: viewers get this on every write              |
 | 404    | resource not found                                                      |
 | 409    | conflict — version mismatch, already-started tournament, FK in use, etc. |
 | 422    | semantically invalid for the format (e.g. draw submitted in knockout)   |
 | 500    | unexpected server error                                                 |
 
 CORS is restricted to the value of `FRONTEND_ORIGIN` (default
-`http://localhost:5173`).
+`http://localhost:5173`), with credentials allowed. State-changing requests
+that carry an `Origin` header must match `PUBLIC_BASE_URL` or
+`FRONTEND_ORIGIN`, otherwise they get **403** (CSRF guard).
+
+---
+
+## Authentication
+
+Two kinds of account, both using the same HttpOnly session cookie
+(`pitch_session`, `SameSite=Lax`, 30 days, stored hashed in Postgres):
+
+- **`admin`** — the default account, created on first run with a password. It
+  is not a player.
+- **Players** — sign in with Google. A Google email is accepted only if an
+  admin has put it on a player (`players.email`, matched case-insensitively).
+  The player is a **viewer** (read-only) unless an admin grants `admin`, which
+  can be done before their first sign-in.
+
+Roles: `admin` can do everything; `viewer` can call every `GET` except that
+account details (`email`, `role`, `signed_in`) of other players are hidden.
+Roles are read from the database on every request, so changes apply at once.
+
+### `GET /auth/status` (public)
+
+**200** `{"setup_required": bool, "google_enabled": bool, "user": null | {id, username, role, player_id, player_name}}`.
+The SPA calls this first to decide between the setup screen, the sign-in
+screen and the app. `setup_required` is true while no admin exists.
+
+### `POST /auth/setup` (public, once)
+
+Body `{"password": "..."}` (at least 12 characters). Creates the `admin`
+account and signs it in: **201** with the user. **409** once an admin exists.
+There is no setup token: on a fresh install the first request wins.
+
+### `POST /auth/login` (public)
+
+Body `{"username": "admin", "password": "..."}`. **200** with the user and a
+session cookie, **401** `invalid credentials` (never says which part was
+wrong), **429** after 10 failures per client IP or per username in 15 minutes.
+
+### `POST /auth/logout` (public)
+
+**204**. Ends the session and clears the cookie.
+
+### `GET /auth/google/start`, `GET /auth/google/callback` (public)
+
+Browser redirects, not JSON. `start` sets a short-lived cookie (state, nonce,
+PKCE verifier) and redirects to Google; `callback` verifies state and the ID
+token (`email_verified`, nonce, audience), matches the email to a player,
+starts a session and redirects to `/`. Failures redirect to
+`/login?error=<code>` with `not_invited` (email not on a player, or the Google
+account differs from the one linked to that player), `failed`, or
+`google_unavailable`.
+
+The first sign-in links the Google account (`sub`) to the player. Changing or
+clearing the player's email unlinks it and ends their sessions.
+
+With `GOOGLE_PROVIDER=fake` (dev only, refused when `APP_ENV` is not `dev`)
+`start` goes to `GET /auth/google/fake`, a page where you type the email to
+sign in as.
+
+### `GET /me/results`
+
+Signed-in users. **200** array, one entry per tournament the signed-in
+player takes part in (newest first): `{tournament, participant, standing,
+position, matches}`. `standing` and `position` are `null` for knockouts and
+drafts. The default admin is not a player and gets `[]`.
 
 ---
 
@@ -61,14 +135,18 @@ without a mapped crest.
 
 ### `GET /players`
 
-**200** — array of `{id, display_name, email, created_at}`. `email` may
-be `null`.
+**200** — array of `{id, display_name, email, created_at, role, signed_in}`.
+`email` may be `null`. `role` is `"admin"`, `"viewer"` or `null` (no account
+yet) and `signed_in` is true once they have signed in with Google. Viewers
+only see `email`, `role` and `signed_in` on their own player; for everyone
+else those come back as `null` / `null` / `false`.
 
 ### `POST /players`
 
-Body: `{"display_name": "Alice", "email": "alice@example.com"}`. `email`
-is optional and lowercased + trimmed before storage. **201** with the
-created row. **400** if `display_name` is empty.
+Admin only. Body: `{"display_name": "Alice", "email": "alice@example.com"}`.
+`email` is optional, lowercased + trimmed before storage, and is what lets
+the person sign in with Google. **201** with the created row. **400** if
+`display_name` is empty. **409** if another player already has that email.
 
 ### `GET /players/{id}`
 
@@ -82,15 +160,29 @@ Body (all fields optional):
 ```
 - Passing `"email": ""` (or whitespace only) clears the field.
 - Passing `display_name` as empty/whitespace is rejected with **400**.
+- Changing or clearing the email unlinks the player's Google account and ends
+  their sessions (their role is kept).
 
-**200** with the updated row, **404** if not found.
+Admin only. **200** with the updated row, **404** if not found, **409** if
+the email belongs to another player, or if you clear the email of a player
+who is an admin (remove admin rights first).
+
+### `PUT /players/{id}/role`
+
+Admin only. Body `{"role": "admin" | "viewer"}`. Grants or removes admin
+rights; the player's account is created if they have not signed in yet, so
+the role is waiting for them on first sign-in. **200** with the player.
+**400** for an unknown role, **404** if not found, **409** if the player has
+no email, if you try to remove your own admin rights, or if it would remove
+the last admin.
 
 ### `DELETE /players/{id}`
 
-**204** on success. **404** if not found. **409** with
+Admin only. **204** on success. **404** if not found. **409** with
 `{"error":"cannot delete: player is referenced by one or more
 tournaments"}` if the player has any participant row (current or
-historical). No cascading delete — tournament history is preserved.
+historical). No cascading delete — tournament history is preserved. Also
+**409** if the player is the last admin.
 
 ---
 
@@ -215,7 +307,9 @@ Errors:
 
 ## What's intentionally absent
 
-- No authentication / no session cookie.
+- No self-service sign-up and no invite emails: an admin adds the email to a
+  player, then tells the person.
+- No password for players: they only sign in with Google.
 - No `created_by` / `updated_by_player_id` attribution on writes
   (`updated_by_player_id` was accepted by an earlier iteration; it is
   no longer parsed nor stored).
