@@ -11,6 +11,9 @@ COPY . .
 # Relative base: nginx proxies /api/ to the backend (see nginx.conf.template).
 ARG VITE_API_BASE=/api
 ENV VITE_API_BASE=$VITE_API_BASE
+# Shown in the footer: the release version, or the short SHA for dev builds.
+ARG VITE_APP_VERSION=dev
+ENV VITE_APP_VERSION=$VITE_APP_VERSION
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:1.27-alpine
