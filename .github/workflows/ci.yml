@@ -2,9 +2,9 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, development]
+    branches: [main]
   push:
-    branches: [main, development]
+    branches: [main]
 
 # Pipeline on pushes to main (see docs/releasing.md):
 #   tests -> release-please -> publish images -> deploy-dev (always)
