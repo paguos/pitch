@@ -19,6 +19,7 @@ import (
 	"github.com/fifa-tournament/backend/internal/league"
 	"github.com/fifa-tournament/backend/internal/store"
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"golang.org/x/oauth2"
 )
 
@@ -411,12 +412,35 @@ type myResult struct {
 // get an empty list.
 func (a *API) MyResults(w http.ResponseWriter, r *http.Request) {
 	u, _ := userFrom(r.Context())
-	out := []myResult{}
 	if u.PlayerID == nil {
-		writeJSON(w, 200, out)
+		writeJSON(w, 200, []myResult{})
 		return
 	}
-	ts, err := a.Store.ListTournamentsForPlayer(r.Context(), *u.PlayerID)
+	a.writeResults(w, r, *u.PlayerID)
+}
+
+// PlayerResults is MyResults for any player, so everyone signed in can look at
+// anyone's profile. It only reads tournament data that is already visible to
+// every signed-in user; account details stay redacted on GET /players/{id}.
+func (a *API) PlayerResults(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, "bad id")
+		return
+	}
+	if _, err := a.Store.GetPlayer(r.Context(), id); errors.Is(err, store.ErrNotFound) {
+		writeErr(w, 404, "not found")
+		return
+	} else if err != nil {
+		writeErr(w, 500, "internal error")
+		return
+	}
+	a.writeResults(w, r, id)
+}
+
+func (a *API) writeResults(w http.ResponseWriter, r *http.Request, playerID uuid.UUID) {
+	out := []myResult{}
+	ts, err := a.Store.ListTournamentsForPlayer(r.Context(), playerID)
 	if err != nil {
 		writeErr(w, 500, "internal error")
 		return
@@ -438,7 +462,7 @@ func (a *API) MyResults(w http.ResponseWriter, r *http.Request) {
 		for _, p := range parts {
 			names[p.ID.String()] = p.TeamName
 			players[p.ID.String()] = p.PlayerName
-			if p.PlayerID == *u.PlayerID {
+			if p.PlayerID == playerID {
 				res.Participant = p
 			}
 		}

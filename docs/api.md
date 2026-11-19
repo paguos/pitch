@@ -99,6 +99,13 @@ drafts. Each match carries `home_name`/`away_name` (teams) and
 `home_player`/`away_player` (the players behind them). The default admin is not
 a player and gets `[]`.
 
+### `GET /players/{id}/results`
+
+Signed-in users, read-only. Same shape as `GET /me/results`, for any player, so
+everyone can look at anyone's profile. An unknown player is **404**, a bad id
+**400**. Account details (email, role) still come from `GET /players/{id}`,
+which hides them from viewers except on their own player.
+
 ---
 
 ## Health

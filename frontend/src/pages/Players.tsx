@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { api, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input } from '../components/ui';
@@ -73,9 +74,13 @@ export default function PlayersPage() {
                   <span className="sm:hidden font-mono text-[12px] text-bone/60 number-display">
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <span className="font-display text-2xl text-bone leading-none">
+                  <Link
+                    to={`/players/${p.id}`}
+                    data-testid={`player-profile-${p.display_name}`}
+                    className="font-display text-2xl text-bone leading-none hover:text-pitch outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch"
+                  >
                     {p.display_name}
-                  </span>
+                  </Link>
                 </div>
               </div>
               {isAdmin && (

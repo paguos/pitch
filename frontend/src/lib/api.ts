@@ -104,6 +104,8 @@ export const api = {
     req<Player>(`/players/${id}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
 
   listPlayers: () => req<Player[]>('/players'),
+  getPlayer: (id: string) => req<Player>(`/players/${id}`),
+  playerResults: (id: string) => req<MyResult[]>(`/players/${id}/results`),
   createPlayer: (display_name: string, email: string | null) =>
     req<Player>('/players', { method: 'POST', body: JSON.stringify({ display_name, email }) }),
   updatePlayer: (id: string, patch: { display_name?: string; email?: string | null }) =>

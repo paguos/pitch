@@ -281,6 +281,42 @@ func TestMyResults(t *testing.T) {
 	}
 }
 
+func TestPlayerResults(t *testing.T) {
+	e := newEnv(t)
+	admin := e.client()
+	admin.setupAdmin()
+	ann := admin.createPlayer("Ann", "ann@test.dev")
+	ben := admin.createPlayer("Ben", "ben@test.dev")
+	teams := decode[[]store.Team](t, admin.expect(200, "GET", "/teams?league=La%20Liga", nil))
+	tour := decode[store.Tournament](t, admin.expect(201, "POST", "/tournaments", map[string]string{"name": "Friday", "format": "league"}))
+	admin.expect(201, "POST", "/tournaments/"+tour.ID.String()+"/participants", map[string]string{"player_id": ann.ID.String(), "team_id": teams[0].ID.String()})
+	admin.expect(201, "POST", "/tournaments/"+tour.ID.String()+"/participants", map[string]string{"player_id": ben.ID.String(), "team_id": teams[1].ID.String()})
+	admin.expect(200, "POST", "/tournaments/"+tour.ID.String()+"/start", nil)
+
+	// Ben, a plain viewer, can read Ann's results.
+	v := e.client()
+	v.googleLogin("ben@test.dev")
+	var results []struct {
+		Participant store.Participant `json:"participant"`
+	}
+	if err := jsonUnmarshal(v.expect(200, "GET", "/players/"+ann.ID.String()+"/results", nil), &results); err != nil {
+		t.Fatal(err)
+	}
+	if len(results) != 1 || results[0].Participant.PlayerID != ann.ID {
+		t.Fatalf("results: %+v", results)
+	}
+
+	// Her account details stay hidden from him.
+	got := decode[store.Player](t, v.expect(200, "GET", "/players/"+ann.ID.String(), nil))
+	if got.Email != nil || got.Role != nil {
+		t.Fatalf("viewer saw account details: %+v", got)
+	}
+
+	v.expect(400, "GET", "/players/nope/results", nil)
+	v.expect(404, "GET", "/players/00000000-0000-0000-0000-000000000000/results", nil)
+	e.client().expect(401, "GET", "/players/"+ann.ID.String()+"/results", nil)
+}
+
 // Every route must be public (healthz, auth), signed-in only, or admin only.
 // This fails when an endpoint is added without deciding which.
 func TestRoutePolicy(t *testing.T) {
