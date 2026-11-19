@@ -95,7 +95,9 @@ sign in as.
 Signed-in users. **200** array, one entry per tournament the signed-in
 player takes part in (newest first): `{tournament, participant, standing,
 position, matches}`. `standing` and `position` are `null` for knockouts and
-drafts. The default admin is not a player and gets `[]`.
+drafts. Each match carries `home_name`/`away_name` (teams) and
+`home_player`/`away_player` (the players behind them). The default admin is not
+a player and gets `[]`.
 
 ---
 
