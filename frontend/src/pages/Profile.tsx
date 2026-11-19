@@ -50,7 +50,7 @@ export default function ProfilePage() {
             {name}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Badge tone={isAdmin ? 'coral' : 'neutral'}>{isAdmin ? 'admin' : 'viewer'}</Badge>
+            {isAdmin && <Badge tone="coral">admin</Badge>}
             {me?.email && <span className="font-mono text-[12px] text-bone/75 break-all">{me.email}</span>}
             {me?.created_at && (
               <span className="font-mono text-[12px] text-bone/60">Joined {fmtMonth(me.created_at)}</span>
