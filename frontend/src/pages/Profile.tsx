@@ -1,5 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useParams } from 'react-router-dom';
 import { api, MyResult, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { OUTCOME_LABEL, OUTCOME_STYLE, PlayedMatch, summarize } from '../lib/results';
@@ -18,27 +18,40 @@ function fmtMonth(iso: string) {
 
 export default function ProfilePage() {
   const { user, isAdmin } = useAuth();
+  // /profile is your own page; /players/:id is read-only and open to everyone signed in.
+  const { id } = useParams();
+  const own = !id || id === user?.player_id;
+  const playerId = id ?? user?.player_id ?? null;
   const [results, setResults] = useState<MyResult[] | null>(null);
   const [me, setMe] = useState<Player | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [shown, setShown] = useState(PAGE);
 
   useEffect(() => {
-    api.myResults().then(setResults).catch(e => setErr(e.message));
-    // Viewers only get their own email back from /players, which is all we need.
-    if (user?.player_id) {
-      api.listPlayers()
-        .then(ps => setMe(ps.find(p => p.id === user.player_id) ?? null))
+    let live = true;
+    setResults(null);
+    setMe(null);
+    setErr(null);
+    setShown(PAGE);
+    (id ? api.playerResults(id) : api.myResults())
+      .then(r => live && setResults(r))
+      .catch(e => live && setErr(e.message));
+    // Email and role only come back for your own player, or for everyone if you're an admin.
+    if (playerId) {
+      api.getPlayer(playerId)
+        .then(p => live && setMe(p))
         .catch(() => {});
     }
-  }, [user?.player_id]);
+    return () => { live = false; };
+  }, [id, playerId]);
 
-  const name = user?.player_name ?? user?.username ?? '';
+  const name = own ? (user?.player_name ?? user?.username ?? '') : (me?.display_name ?? '');
+  const showAdminBadge = own ? isAdmin : me?.role === 'admin';
   const sum = results ? summarize(results) : null;
 
   return (
     <div>
-      <header className="flex items-center gap-5 sm:gap-7">
+      {name && <header className="flex items-center gap-5 sm:gap-7">
         <div
           aria-hidden="true"
           className="flex h-20 w-20 sm:h-24 sm:w-24 shrink-0 items-center justify-center border border-pitch/60 bg-ash/60 font-display text-6xl sm:text-7xl leading-none text-pitch"
@@ -50,18 +63,18 @@ export default function ProfilePage() {
             {name}
           </h1>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            {isAdmin && <Badge tone="coral">admin</Badge>}
+            {showAdminBadge && <Badge tone="coral">admin</Badge>}
             {me?.email && <span className="font-mono text-[12px] text-bone/75 break-all">{me.email}</span>}
             {me?.created_at && (
               <span className="font-mono text-[12px] text-bone/60">Joined {fmtMonth(me.created_at)}</span>
             )}
           </div>
         </div>
-      </header>
+      </header>}
 
       {err && <div className="text-coral font-mono text-xs mt-8">{err}</div>}
 
-      {!user?.player_id && results && (
+      {own && !user?.player_id && results && (
         <Card className="mt-10 p-8">
           <p className="font-display text-3xl text-bone/70">No player attached.</p>
           <p className="text-bone/70 mt-2 text-[14px] max-w-md leading-relaxed">
@@ -71,12 +84,12 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {sum && user?.player_id && (
+      {sum && playerId && (
         sum.played === 0 ? (
           <Card className="mt-10 p-8">
             <p className="font-display text-3xl text-bone/70">No matches played yet.</p>
             <p className="text-bone/70 mt-2 text-[14px] max-w-md leading-relaxed">
-              Your record and recent form show up here after your first result.{' '}
+              {own ? 'Your record' : 'Their record'} and recent form show up here after {own ? 'your' : 'their'} first result.{' '}
               <Link to="/" className="text-pitch hover:underline">Browse tournaments</Link>
             </p>
           </Card>

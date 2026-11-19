@@ -27,6 +27,7 @@ export default function App() {
         <Route path="/me" element={<MyResultsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/players" element={<PlayersPage />} />
+        <Route path="/players/:id" element={<ProfilePage />} />
         <Route path="/tournaments/new" element={isAdmin ? <TournamentNew /> : <Navigate to="/" replace />} />
         <Route path="/tournaments/:id" element={<TournamentDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />

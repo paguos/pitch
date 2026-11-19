@@ -75,6 +75,7 @@ func New(cfg config.Config, st *store.Store, provider func(ctx context.Context) 
 		r.Get("/teams", a.ListTeams)
 		r.Get("/players", a.ListPlayers)
 		r.Get("/players/{id}", a.GetPlayer)
+		r.Get("/players/{id}/results", a.PlayerResults)
 		r.Get("/tournaments", a.ListTournaments)
 		r.Get("/tournaments/{id}", a.GetTournament)
 
