@@ -7,6 +7,7 @@ import TournamentNew from './pages/TournamentNew';
 import TournamentDetail from './pages/TournamentDetail';
 import PlayersPage from './pages/Players';
 import MyResultsPage from './pages/MyResults';
+import ProfilePage from './pages/Profile';
 
 export default function App() {
   const { phase, setupRequired, user, isAdmin } = useAuth();
@@ -24,6 +25,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<TournamentList />} />
         <Route path="/me" element={<MyResultsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="/tournaments/new" element={isAdmin ? <TournamentNew /> : <Navigate to="/" replace />} />
         <Route path="/tournaments/:id" element={<TournamentDetail />} />

@@ -1,24 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { api, MyMatch, MyResult } from '../lib/api';
+import { api, MyResult } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { outcome, OUTCOME_STYLE } from '../lib/results';
 import { Badge, Card, Stat } from '../components/ui';
 import { TeamCrest } from '../components/TeamCrest';
-
-type Outcome = 'W' | 'D' | 'L' | null;
-
-function outcome(m: MyMatch): Outcome {
-  if (m.home_goals == null || m.away_goals == null) return null;
-  const mine = m.is_home ? m.home_goals : m.away_goals;
-  const theirs = m.is_home ? m.away_goals : m.home_goals;
-  return mine > theirs ? 'W' : mine < theirs ? 'L' : 'D';
-}
-
-const OUTCOME_STYLE: Record<'W' | 'D' | 'L', string> = {
-  W: 'text-pitch border-pitch/60',
-  D: 'text-bone/70 border-hairline',
-  L: 'text-coral border-coral/60',
-};
 
 const ORDINAL = ['th', 'st', 'nd', 'rd'];
 function ordinal(n: number) {
