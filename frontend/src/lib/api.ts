@@ -51,6 +51,7 @@ export type AuthStatus = {
 export type MyMatch = {
   id: string; round: number; status: MatchStatus;
   home_name: string; away_name: string;
+  home_player: string; away_player: string;
   home_goals: number | null; away_goals: number | null;
   is_home: boolean; played_at: string | null;
 };

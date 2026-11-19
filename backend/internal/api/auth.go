@@ -384,15 +384,18 @@ func redactPlayer(p store.Player, u store.User) store.Player {
 // --- my results ---
 
 type myMatch struct {
-	ID        string     `json:"id"`
-	Round     int        `json:"round"`
-	Status    string     `json:"status"`
-	HomeName  string     `json:"home_name"`
-	AwayName  string     `json:"away_name"`
-	HomeGoals *int       `json:"home_goals"`
-	AwayGoals *int       `json:"away_goals"`
-	IsHome    bool       `json:"is_home"`
-	PlayedAt  *time.Time `json:"played_at"`
+	ID       string `json:"id"`
+	Round    int    `json:"round"`
+	Status   string `json:"status"`
+	HomeName string `json:"home_name"`
+	AwayName string `json:"away_name"`
+	// The players behind each team, so a match can read "Atletico Madrid, Ben".
+	HomePlayer string     `json:"home_player"`
+	AwayPlayer string     `json:"away_player"`
+	HomeGoals  *int       `json:"home_goals"`
+	AwayGoals  *int       `json:"away_goals"`
+	IsHome     bool       `json:"is_home"`
+	PlayedAt   *time.Time `json:"played_at"`
 }
 
 type myResult struct {
@@ -431,8 +434,10 @@ func (a *API) MyResults(w http.ResponseWriter, r *http.Request) {
 		}
 		res := myResult{Tournament: t, Matches: []myMatch{}}
 		names := map[string]string{}
+		players := map[string]string{}
 		for _, p := range parts {
 			names[p.ID.String()] = p.TeamName
+			players[p.ID.String()] = p.PlayerName
 			if p.PlayerID == *u.PlayerID {
 				res.Participant = p
 			}
@@ -455,6 +460,7 @@ func (a *API) MyResults(w http.ResponseWriter, r *http.Request) {
 			res.Matches = append(res.Matches, myMatch{
 				ID: m.ID.String(), Round: m.Round, Status: m.Status,
 				HomeName: names[m.HomeParticipantID.String()], AwayName: names[m.AwayParticipantID.String()],
+				HomePlayer: players[m.HomeParticipantID.String()], AwayPlayer: players[m.AwayParticipantID.String()],
 				HomeGoals: m.HomeGoals, AwayGoals: m.AwayGoals, IsHome: isHome, PlayedAt: m.PlayedAt,
 			})
 		}

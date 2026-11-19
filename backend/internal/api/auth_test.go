@@ -259,8 +259,10 @@ func TestMyResults(t *testing.T) {
 		Participant store.Participant `json:"participant"`
 		Position    *int              `json:"position"`
 		Matches     []struct {
-			HomeName string `json:"home_name"`
-			AwayName string `json:"away_name"`
+			HomeName   string `json:"home_name"`
+			AwayName   string `json:"away_name"`
+			HomePlayer string `json:"home_player"`
+			AwayPlayer string `json:"away_player"`
 		} `json:"matches"`
 	}
 	if err := jsonUnmarshal(v.expect(200, "GET", "/me/results", nil), &results); err != nil {
@@ -271,6 +273,11 @@ func TestMyResults(t *testing.T) {
 	}
 	if results[0].Position == nil || len(results[0].Matches) == 0 {
 		t.Fatalf("expected a standing and fixtures: %+v", results[0])
+	}
+	// Each side of a fixture carries the name of the player behind the team.
+	m := results[0].Matches[0]
+	if got := []string{m.HomePlayer, m.AwayPlayer}; !(got[0] == "Ann" && got[1] == "Ben") && !(got[0] == "Ben" && got[1] == "Ann") {
+		t.Fatalf("expected Ann and Ben as players, got %v", got)
 	}
 }
 
