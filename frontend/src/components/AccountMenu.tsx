@@ -73,9 +73,9 @@ export function AccountMenu() {
         >
           <div className="px-4 py-3 border-b border-hairline">
             <div className="font-mono text-[12px] text-bone truncate">{who}</div>
-            <div className={`mt-1 font-mono text-[11px] uppercase tracking-widest2 ${isAdmin ? 'text-coral' : 'text-bone/60'}`}>
-              {isAdmin ? 'admin' : 'viewer'}
-            </div>
+            {isAdmin && (
+              <div className="mt-1 font-mono text-[11px] uppercase tracking-widest2 text-coral">admin</div>
+            )}
           </div>
           <Link to="/profile" role="menuitem" className={ITEM} data-testid="view-profile">
             View profile
