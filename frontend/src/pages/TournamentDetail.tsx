@@ -5,6 +5,8 @@ import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail }
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
 import { StyledSelect, StyledOption } from '../components/StyledSelect';
 import { TeamCrest } from '../components/TeamCrest';
+import { CompetitionPicker } from '../components/CompetitionPicker';
+import { COMPETITIONS, CUSTOM_KEY } from '../lib/competitions';
 
 type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
@@ -1147,15 +1149,16 @@ function QuickDrawModal({
   onDone: () => void;
   onCancel: () => void;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
+  // 1 players, 2 competition, 3 teams, 4 preview.
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(availablePlayers.map(p => p.id)),
   );
-  // The pool is whichever teams are ticked. Presets below just tick a batch.
-  const [teamIds, setTeamIds] = useState<Set<string>>(() => {
-    const nationals = availableTeams.filter(t => t.kind === 'national');
-    return new Set((nationals.length > 0 ? nationals : availableTeams).map(t => t.id));
-  });
+  // The pool is whichever teams are ticked. Picking a competition just ticks
+  // its teams; the team step lets you add or remove from there.
+  const [competitionKey, setCompetitionKey] = useState<string | null>(null);
+  const [teamIds, setTeamIds] = useState<Set<string>>(() => new Set());
+  const [showAll, setShowAll] = useState(false); // list the whole catalog, not just the competition
   const [query, setQuery] = useState('');
   const [pairs, setPairs] = useState<DrawPair[]>([]);
   const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
@@ -1183,24 +1186,27 @@ function QuickDrawModal({
   }, []);
   useEffect(() => { dialogRef.current?.focus(); }, [step]);
 
-  const presets = useMemo(() => {
-    const opts: { key: string; label: string; teams: Team[] }[] = [];
-    const nationals = availableTeams.filter(t => t.kind === 'national');
-    if (nationals.length > 0) opts.push({ key: 'national', label: 'National teams', teams: nationals });
-    const clubs = availableTeams.filter(t => t.kind === 'club');
-    if (clubs.length > 0) opts.push({ key: 'all-clubs', label: 'All clubs', teams: clubs });
-    const leagueMap = new Map<string, Team[]>();
-    for (const t of clubs) {
-      const arr = leagueMap.get(t.league) ?? [];
-      arr.push(t);
-      leagueMap.set(t.league, arr);
+  // Free teams per competition. Custom counts the whole catalog.
+  const competitionOptions = useMemo(
+    () => COMPETITIONS.map(c => ({
+      ...c,
+      count: c.key === CUSTOM_KEY ? availableTeams.length : availableTeams.filter(c.includes).length,
+    })),
+    [availableTeams],
+  );
+  const competition = competitionOptions.find(c => c.key === competitionKey) ?? null;
+
+  function pickCompetition(key: string) {
+    // Coming back to the same competition keeps the edits made on the team step.
+    if (key !== competitionKey) {
+      const picked = competitionOptions.find(c => c.key === key);
+      setCompetitionKey(key);
+      setTeamIds(new Set(availableTeams.filter(t => picked?.includes(t)).map(t => t.id)));
+      setShowAll(key === CUSTOM_KEY);
+      setQuery('');
     }
-    const leagues = [...leagueMap.entries()].sort((a, b) => a[0].localeCompare(b[0]));
-    for (const [league, leagueTeams] of leagues) {
-      opts.push({ key: `league:${league}`, label: league, teams: leagueTeams });
-    }
-    return opts;
-  }, [availableTeams]);
+    setStep(3);
+  }
 
   // Players still waiting for a team. After a partial save the page refreshes
   // and the saved ones drop out of availablePlayers, so this stays truthful.
@@ -1219,17 +1225,22 @@ function QuickDrawModal({
   const poolReady = poolTeams.length >= need;
   const shortBy = Math.max(0, need - poolTeams.length);
 
+  // A search always looks through the whole catalog: that's how you add a team
+  // from outside the competition.
+  const scoped = !!competition && competition.key !== CUSTOM_KEY && !showAll && !query.trim();
   const visibleTeams = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return availableTeams
+    const base = scoped && competition ? availableTeams.filter(competition.includes) : availableTeams;
+    return base
       .filter(t => !q || [t.name, t.league, t.country].some(s => s?.toLowerCase().includes(q)))
-      // Group like a preset would: nationals first, then clubs by league, so a
-      // preset's teams sit together instead of scattering through the list.
       .sort((a, b) =>
-        Number(b.kind === 'national') - Number(a.kind === 'national') ||
-        (a.kind === 'club' ? a.league : '').localeCompare(b.kind === 'club' ? b.league : '') ||
-        a.name.localeCompare(b.name));
-  }, [availableTeams, query]);
+        scoped
+          ? a.name.localeCompare(b.name)
+          // Whole catalog: nationals first, then clubs by league.
+          : Number(b.kind === 'national') - Number(a.kind === 'national') ||
+            (a.kind === 'club' ? a.league : '').localeCompare(b.kind === 'club' ? b.league : '') ||
+            a.name.localeCompare(b.name));
+  }, [availableTeams, query, scoped, competition]);
   const allShownTicked = visibleTeams.length > 0 && visibleTeams.every(t => teamIds.has(t.id));
 
   function toggleShown() {
@@ -1247,7 +1258,7 @@ function QuickDrawModal({
 
   function goToPreview() {
     draw();
-    setStep(3);
+    setStep(4);
   }
 
   async function confirm() {
@@ -1278,10 +1289,15 @@ function QuickDrawModal({
 
   const titleId = 'quick-draw-title';
   const partlySaved = savedCount > 0;
-  const heading = step === 1 ? 'Select players' : step === 2 ? 'Choose teams' : 'Preview draw';
+  const heading =
+    step === 1 ? 'Select players'
+    : step === 2 ? 'Pick a competition'
+    : step === 3 ? 'Choose teams'
+    : 'Preview draw';
   const subhead =
     step === 1 ? 'Everyone not yet in this tournament. Pick at least 2.'
-    : step === 2 ? 'Each player gets a random team from your selection. Start from a preset or tick teams yourself.'
+    : step === 2 ? 'Its teams go in the draw. You can add or remove teams next.'
+    : step === 3 ? 'Each player gets a random team from your selection.'
     : 'Nothing is saved until you add them.';
 
   return (
@@ -1302,9 +1318,9 @@ function QuickDrawModal({
       >
         <div className="flex items-center justify-between">
           <div className="label-eyebrow text-coral">/ quick draw</div>
-          <div role="img" aria-label={`Step ${step} of 3`} className="flex gap-1.5">
-            {[1, 2, 3].map(n => (
-              <span key={n} className={`h-[2px] w-7 transition-colors ${n <= step ? 'bg-pitch' : 'bg-hairline'}`} />
+          <div role="img" aria-label={`Step ${step} of 4`} className="flex gap-1.5">
+            {[1, 2, 3, 4].map(n => (
+              <span key={n} className={`h-[2px] w-6 transition-colors ${n <= step ? 'bg-pitch' : 'bg-hairline'}`} />
             ))}
           </div>
         </div>
@@ -1348,27 +1364,46 @@ function QuickDrawModal({
 
         {step === 2 && (
           <>
-            <div role="group" aria-label="Presets" className="mt-4 flex gap-2 overflow-x-auto shrink-0 no-scrollbar [mask-image:linear-gradient(to_right,black_92%,transparent)] pr-6">
-              {presets.map(p => {
-                const active = poolTeams.length === p.teams.length && p.teams.every(t => teamIds.has(t.id));
-                return (
-                  <button
-                    key={p.key}
-                    type="button"
-                    aria-pressed={active}
-                    onClick={() => setTeamIds(new Set(p.teams.map(t => t.id)))}
-                    className={`shrink-0 whitespace-nowrap px-2.5 py-1 border font-mono text-[11px] uppercase tracking-widest2 transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
-                      active ? 'border-pitch/60 bg-pitch/[0.04] text-pitch' : 'border-hairline text-bone/70 hover:border-pitch/50 hover:text-bone'
-                    }`}
-                  >
-                    {p.label} <span className="number-display opacity-60">{p.teams.length}</span>
-                  </button>
-                );
-              })}
+            {/* Padding leaves room for the selection outline, which the scroller would clip. */}
+            <div className="mt-4 flex-1 overflow-y-auto min-h-0 thin-scroll p-1">
+              <CompetitionPicker
+                options={competitionOptions}
+                selectedKey={competitionKey}
+                need={need}
+                onPick={pickCompetition}
+              />
             </div>
+            <div className="mt-4 flex items-center justify-between border-t border-hairline pt-5 shrink-0">
+              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+              <Button disabled={!competition} onClick={() => setStep(3)}>Next →</Button>
+            </div>
+          </>
+        )}
+
+        {step === 3 && (
+          <>
+            {competition && (
+              <div className="mt-4 flex items-center gap-3 shrink-0">
+                {competition.logo && (
+                  <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center bg-chalk p-1">
+                    <img src={competition.logo} alt="" draggable={false} className="h-full w-full object-contain" />
+                  </span>
+                )}
+                <span className="font-display text-2xl leading-none text-bone">{competition.name}</span>
+                {competition.key !== CUSTOM_KEY && (
+                  <button
+                    type="button"
+                    onClick={() => setShowAll(v => !v)}
+                    className="ml-auto font-mono text-[12px] text-bone/60 underline underline-offset-4 decoration-bone/30 hover:text-pitch focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch"
+                  >
+                    {showAll ? `Only ${competition.name}` : 'Add other teams'}
+                  </button>
+                )}
+              </div>
+            )}
             <Input
               aria-label="Search teams"
-              placeholder="Search by team, league or country"
+              placeholder="Search all teams by name, league or country"
               value={query}
               onChange={e => setQuery(e.target.value)}
               className="mt-3 shrink-0 text-[14px]"
@@ -1421,13 +1456,13 @@ function QuickDrawModal({
               </div>
             </div>
             <div className="mt-4 flex items-center justify-between border-t border-hairline pt-5 shrink-0">
-              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
+              <Button variant="ghost" onClick={() => setStep(2)}>← Back</Button>
               <Button disabled={!poolReady} onClick={goToPreview}>Preview draw →</Button>
             </div>
           </>
         )}
 
-        {step === 3 && (
+        {step === 4 && (
           <>
             <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2 thin-scroll">
               {pairs.map(({ player, team }, i) => (
@@ -1450,7 +1485,7 @@ function QuickDrawModal({
               </div>
             )}
             <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
-              <Button variant="ghost" disabled={busy || partlySaved} onClick={() => setStep(2)}>← Back</Button>
+              <Button variant="ghost" disabled={busy || partlySaved} onClick={() => setStep(3)}>← Back</Button>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" disabled={busy || !poolReady} onClick={draw}>Shuffle ↺</Button>
                 <Button disabled={busy || pairs.length === 0} data-testid="quick-draw-confirm" onClick={confirm}>
