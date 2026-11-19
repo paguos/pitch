@@ -180,9 +180,18 @@ function MatchLog({ log, shown, onMore }: { log: PlayedMatch[]; shown: number; o
                 {fmtDay(m.played_at) || `R${m.round}`}
               </span>
               <span className="flex-1 min-w-0">
-                <span className="block truncate text-[14px] text-bone" title={`${m.is_home ? 'vs' : 'at'} ${m.opponent}`}>
-                  <span className="font-mono text-[11px] uppercase tracking-widest2 text-bone/60 mr-2">{m.is_home ? 'vs' : 'at'}</span>
-                  {m.opponent}
+                <span
+                  className="flex items-center gap-2 min-w-0 text-[14px] text-bone"
+                  title={`${m.is_home ? 'vs' : 'at'} ${m.opponent}, played by ${m.opponentPlayer}`}
+                >
+                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-widest2 text-bone/60">{m.is_home ? 'vs' : 'at'}</span>
+                  <span className="truncate">{m.opponent}</span>
+                  {m.opponentPlayer && (
+                    <span className="shrink-0 max-w-[7rem] truncate border border-hairline px-1.5 py-px font-mono text-[11px] text-bone/80">
+                      <span className="sr-only">played by </span>
+                      {m.opponentPlayer}
+                    </span>
+                  )}
                 </span>
                 <Link
                   to={`/tournaments/${m.tournamentId}`}

@@ -26,6 +26,7 @@ export type PlayedMatch = MyMatch & {
   mine: number;
   theirs: number;
   opponent: string;
+  opponentPlayer: string;
 };
 
 export type Summary = {
@@ -59,6 +60,7 @@ export function summarize(results: MyResult[]): Summary {
         mine,
         theirs,
         opponent: m.is_home ? m.away_name : m.home_name,
+        opponentPlayer: m.is_home ? m.away_player : m.home_player,
       });
     }
   }
