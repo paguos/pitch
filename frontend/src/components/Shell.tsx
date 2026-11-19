@@ -1,6 +1,7 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
+import { AccountMenu } from './AccountMenu';
 
 // Baked in at image build time (Dockerfile.prod): a release version like
 // "0.2.0", a short git SHA for dev builds, or unset when running locally.
@@ -36,10 +37,9 @@ export function Shell({ children }: { children: ReactNode }) {
   const [tz, setTz] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
-  const { user, isAdmin, signOut } = useAuth();
+  const { user } = useAuth();
   // The default admin isn't a player, so only players get a results page.
   const NAV_LINKS = user?.player_id ? [...BASE_LINKS, MY_RESULTS_LINK] : BASE_LINKS;
-  const who = user?.player_name ?? user?.username ?? '';
 
   useEffect(() => {
     const tick = () => {
@@ -73,19 +73,6 @@ export function Shell({ children }: { children: ReactNode }) {
             ))}
           </nav>
           <div className="flex-1" />
-          <div className="hidden sm:flex items-center gap-3 whitespace-nowrap" data-testid="session-chip">
-            <span className="font-mono text-[12px] text-bone/80 max-w-[10rem] truncate">{who}</span>
-            <span className={`font-mono text-[11px] uppercase tracking-widest2 ${isAdmin ? 'text-coral' : 'text-bone/55'}`}>
-              {isAdmin ? 'admin' : 'viewer'}
-            </span>
-            <button
-              onClick={() => signOut()}
-              data-testid="sign-out"
-              className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
-            >
-              sign out
-            </button>
-          </div>
           <div className="hidden lg:flex items-center gap-3 pl-4 border-l border-hairline">
             <span
               aria-hidden="true"
@@ -102,6 +89,7 @@ export function Shell({ children }: { children: ReactNode }) {
               </span>
             </div>
           </div>
+          <AccountMenu />
           {/* Hamburger — mobile only */}
           <button
             className="md:hidden flex flex-col justify-center gap-[5px] p-1 text-bone/75 hover:text-pitch"
@@ -157,18 +145,6 @@ export function Shell({ children }: { children: ReactNode }) {
               </NavLink>
             ))}
           </nav>
-          <div className="mt-auto px-6 py-5 border-t border-hairline">
-            <div className="font-mono text-[12px] text-bone/80 truncate">{who}</div>
-            <div className={`mt-1 font-mono text-[11px] uppercase tracking-widest2 ${isAdmin ? 'text-coral' : 'text-bone/55'}`}>
-              {isAdmin ? 'admin' : 'viewer'}
-            </div>
-            <button
-              onClick={() => signOut()}
-              className="mt-4 font-mono text-[12px] uppercase tracking-widest2 text-bone/70 hover:text-pitch"
-            >
-              sign out
-            </button>
-          </div>
         </div>
       </div>
 
