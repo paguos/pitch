@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.0](https://github.com/paguos/pitch/compare/v0.3.0...v0.4.0) (2026-11-20)
+
+
+### Features
+
+* **frontend:** add teams from outside the chosen competition to the draw ([#53](https://github.com/paguos/pitch/issues/53)) ([3d12fa7](https://github.com/paguos/pitch/commit/3d12fa75135fa743e2aa0d71b867f4ffb583f90d))
+* **frontend:** pick players before competition and teams in quick draw ([#55](https://github.com/paguos/pitch/issues/55)) ([3f208ce](https://github.com/paguos/pitch/commit/3f208ce64c6068b0274263e44480b1b29e134762))
+
 ## [0.3.0](https://github.com/paguos/pitch/compare/v0.2.0...v0.3.0) (2026-11-20)
 
 
