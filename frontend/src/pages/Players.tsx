@@ -340,7 +340,7 @@ function RoleDialog({
         <>
           {granting ? (
             <p>
-              Admins can change everything: players, tournaments and scores. They can also give admin
+              Admins can change everything: players, tournaments and results. They can also give admin
               rights to others. {player.display_name} signs in with{' '}
               <span className="font-mono text-bone">{player.email}</span>.
             </p>
