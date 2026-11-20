@@ -80,6 +80,16 @@
   .account-menu { animation: menu-in 120ms ease-out both; }
 }
 
+/* Score entry: a brief pitch-green edge after a result is saved, so it's clear
+   the save landed even though the panel resets for the next match. */
+@keyframes score-saved {
+  from { box-shadow: inset 0 0 0 1px rgba(31, 174, 78, 0.9); }
+  to   { box-shadow: inset 0 0 0 1px rgba(31, 174, 78, 0); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .score-saved-flash { animation: score-saved 900ms ease-out both; }
+}
+
 /* Quiet scrollbars for scrolling lists inside dialogs. */
 .thin-scroll { scrollbar-width: thin; scrollbar-color: #2A302D transparent; }
 .thin-scroll::-webkit-scrollbar { height: 0; width: 6px; }

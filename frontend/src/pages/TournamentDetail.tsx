@@ -5,6 +5,7 @@ import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail }
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
 import { StyledSelect, StyledOption } from '../components/StyledSelect';
 import { TeamCrest } from '../components/TeamCrest';
+import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
 import { COMPETITIONS, CUSTOM_KEY } from '../lib/competitions';
 
@@ -151,6 +152,12 @@ export default function TournamentDetailPage() {
             <ActiveActions detail={detail} onChanged={refresh} />
           )}
         </div>
+      )}
+
+      {/* Score entry — pick the two sides instead of finding the fixture row.
+          Sits above the tabs so a result can be entered from any of them. */}
+      {isAdmin && t.status === 'ACTIVE' && (
+        <ScoreEntry participants={detail.participants} matches={detail.matches} onSaved={refresh} />
       )}
 
       {/* Tabs */}
