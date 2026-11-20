@@ -61,7 +61,7 @@
   filter: saturate(0.88) contrast(1.04) brightness(1.04);
 }
 
-/* Quick draw: each pairing settles into place after a shuffle. Plays only in
+/* Draft: each pairing settles into place after a shuffle. Plays only in
    response to the user's shuffle/preview click, and only if motion is welcome. */
 @keyframes draw-in {
   from { opacity: 0; transform: translateY(6px); }

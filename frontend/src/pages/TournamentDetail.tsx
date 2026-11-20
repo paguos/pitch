@@ -3,11 +3,10 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
-import { StyledSelect, StyledOption } from '../components/StyledSelect';
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
-import { COMPETITIONS, CUSTOM_KEY } from '../lib/competitions';
+import { COMPETITIONS } from '../lib/competitions';
 
 type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
@@ -21,7 +20,6 @@ export default function TournamentDetailPage() {
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
-  const [drawing, setDrawing] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
@@ -122,32 +120,13 @@ export default function TournamentDetailPage() {
       {isAdmin && t.status !== 'COMPLETED' && (
         <div className="mt-10 border-y border-hairline py-5">
           {t.status === 'DRAFT' ? (
-            <div className="flex flex-wrap items-start gap-6">
-              <AddParticipantForm
-                tournamentId={t.id}
-                availablePlayers={availablePlayers}
-                availableTeams={availableTeams}
-                onAdded={refresh}
-              />
-              <div className="flex-1" />
-              <div className="flex flex-wrap items-center justify-end gap-3">
-                {availablePlayers.length >= 2 && availableTeams.length >= 2 && (
-                  <Button
-                    variant="ghost"
-                    title="Randomly pair players with teams"
-                    onClick={() => setDrawing(true)}
-                  >
-                    quick draw
-                  </Button>
-                )}
-                <Button
-                  disabled={detail.participants.length < 2}
-                  onClick={async () => { await api.start(t.id); refresh(); }}
-                >
-                  start tournament →
-                </Button>
-              </div>
-            </div>
+            <DraftPanel
+              tournamentId={t.id}
+              participantCount={detail.participants.length}
+              availablePlayers={availablePlayers}
+              availableTeams={availableTeams}
+              onChanged={refresh}
+            />
           ) : (
             <ActiveActions detail={detail} onChanged={refresh} />
           )}
@@ -214,229 +193,7 @@ export default function TournamentDetailPage() {
           onCancel={() => setCopying(false)}
         />
       )}
-
-      {drawing && (
-        <QuickDrawModal
-          availablePlayers={availablePlayers}
-          availableTeams={availableTeams}
-          tournamentId={t.id}
-          onProgress={refresh}
-          onDone={() => { setDrawing(false); refresh(); }}
-          onCancel={() => setDrawing(false)}
-        />
-      )}
     </div>
-  );
-}
-
-// --- Add-participant form: the new join flow ---
-
-function AddParticipantForm({
-  tournamentId, availablePlayers, availableTeams, onAdded,
-}: {
-  tournamentId: string;
-  availablePlayers: Player[];
-  availableTeams: Team[];
-  onAdded: () => void;
-}) {
-  const [playerId, setPlayerId] = useState('');
-  // category = 'club' | 'national'. Drives the COUNTRY/TEAM cascade below.
-  // For clubs we keep the 3-step CATEGORY → COUNTRY → TEAM cascade (country
-  // meaningfully narrows ~96 clubs down to ~20). For nationals we collapse
-  // to CATEGORY → TEAM since each country has exactly 1 national team, so a
-  // country picker would just be a redundant click to narrow 50 → 1.
-  const [category, setCategory] = useState<'club' | 'national'>('club');
-  const [country, setCountry] = useState('');
-  const [teamId, setTeamId] = useState('');
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  // For clubs we need both country + team; for nationals just team.
-  const canSubmit = !!playerId && !!teamId && (category === 'national' || !!country) && !busy;
-
-  // Teams in the currently-picked category.
-  const teamsInCategory = useMemo(
-    () => availableTeams.filter(t => t.kind === category),
-    [availableTeams, category],
-  );
-
-  // Total available counts per category, for the CATEGORY picker hint.
-  const categoryCounts = useMemo(() => {
-    let club = 0, national = 0;
-    for (const t of availableTeams) {
-      if (t.kind === 'club') club++;
-      else if (t.kind === 'national') national++;
-    }
-    return { club, national };
-  }, [availableTeams]);
-
-  // Countries available within the current category. Sorted by team count
-  // desc so the big leagues surface first (clubs); for nationals every
-  // country has exactly 1, so it falls back to alphabetical.
-  const countries = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const t of teamsInCategory) {
-      counts.set(t.country, (counts.get(t.country) || 0) + 1);
-    }
-    return Array.from(counts.entries())
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
-      .map(([name, count]) => ({ name, count }));
-  }, [teamsInCategory]);
-
-  // Team options:
-  //   - club: filter by chosen country, sorted alphabetically.
-  //   - national: skip country, list all 50+ nations alphabetically.
-  const teamsForPicker = useMemo(
-    () => (category === 'national'
-      ? [...teamsInCategory].sort((a, b) => a.name.localeCompare(b.name))
-      : teamsInCategory
-          .filter(t => t.country === country)
-          .sort((a, b) => a.name.localeCompare(b.name))
-    ),
-    [teamsInCategory, country, category],
-  );
-
-  // If the previously-picked player/team just got added (and so was removed
-  // from the available list), clear the local selection so the form is ready
-  // for the next pick.
-  useEffect(() => {
-    if (playerId && !availablePlayers.find(p => p.id === playerId)) setPlayerId('');
-  }, [availablePlayers, playerId]);
-  useEffect(() => {
-    if (teamId && !availableTeams.find(t => t.id === teamId)) setTeamId('');
-  }, [availableTeams, teamId]);
-  // If the country no longer has any available teams (e.g. the last one was
-  // just taken), clear the country selection too.
-  useEffect(() => {
-    if (country && !countries.find(c => c.name === country)) setCountry('');
-  }, [countries, country]);
-  // If the picked team no longer matches the current category+country scope,
-  // clear it. Covers: category switched, country switched, last team taken.
-  useEffect(() => {
-    if (teamId && !teamsForPicker.find(t => t.id === teamId)) setTeamId('');
-  }, [teamsForPicker, teamId]);
-  // Switching CATEGORY resets the dependent COUNTRY (only meaningful for
-  // clubs). The team-id effect above handles clearing teamId.
-  useEffect(() => {
-    setCountry('');
-  }, [category]);
-
-  if (availablePlayers.length === 0) {
-    return (
-      <div className="font-mono text-[13px] uppercase tracking-widest2 text-coral/90">
-        all players are already in this tournament · add more on /players
-      </div>
-    );
-  }
-
-  const playerOptions: StyledOption[] = availablePlayers.map(p => ({
-    value: p.id, label: p.display_name,
-  }));
-  const categoryOptions: StyledOption[] = [
-    { value: 'club',     label: 'CLUB',     hint: String(categoryCounts.club).padStart(3, '0') },
-    { value: 'national', label: 'NATIONAL', hint: String(categoryCounts.national).padStart(3, '0') },
-  ];
-  const countryOptions: StyledOption[] = countries.map(c => ({
-    value: c.name,
-    label: c.name,
-    hint: String(c.count).padStart(2, '0'),
-  }));
-  const teamOptions: StyledOption[] = teamsForPicker.map(t => ({
-    value: t.id, label: t.name, iconUrl: t.logo_url ?? null,
-  }));
-
-  return (
-    <form
-      data-testid="add-participant-form"
-      className="flex flex-wrap items-end gap-x-5 gap-y-3"
-      onSubmit={async e => {
-        e.preventDefault();
-        if (!canSubmit) return;
-        setErr(null); setBusy(true);
-        try {
-          await api.addParticipant(tournamentId, playerId, teamId);
-          // reset for the next entry — let the parent refresh propagate the
-          // updated available* lists, then the effects above clear selection.
-          onAdded();
-        } catch (e: any) {
-          setErr(e.message);
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <div className="flex flex-col gap-1.5">
-        <span className="label-eyebrow">player</span>
-        <StyledSelect
-          testId="add-participant-player"
-          ariaLabel="player"
-          value={playerId}
-          onChange={setPlayerId}
-          options={playerOptions}
-          placeholder="— pick player —"
-          accent="pitch"
-        />
-      </div>
-
-      <div className="flex flex-col gap-1.5">
-        <span className="label-eyebrow">category</span>
-        <StyledSelect
-          testId="add-participant-category"
-          ariaLabel="category"
-          value={category}
-          onChange={v => setCategory(v as 'club' | 'national')}
-          options={categoryOptions}
-          accent="coral"
-          width="min-w-[12rem]"
-        />
-      </div>
-
-      {/* Country picker — only meaningful for clubs (~96 across 5 leagues).
-          For nationals each country has exactly 1 team, so we collapse the
-          cascade and let the TEAM picker list all nations directly. */}
-      {category === 'club' && (
-        <div className="flex flex-col gap-1.5">
-          <span className="label-eyebrow">country</span>
-          <StyledSelect
-            testId="add-participant-country"
-            ariaLabel="country"
-            value={country}
-            onChange={setCountry}
-            options={countryOptions}
-            placeholder="— pick country —"
-            accent="coral"
-          />
-        </div>
-      )}
-
-      <div className="flex flex-col gap-1.5">
-        <span className="label-eyebrow">team</span>
-        <StyledSelect
-          testId="add-participant-team"
-          ariaLabel="team"
-          value={teamId}
-          onChange={setTeamId}
-          options={teamOptions}
-          placeholder={
-            category === 'national'
-              ? '— pick nation —'
-              : country ? '— pick team —' : '— pick country first —'
-          }
-          disabled={category === 'club' && !country}
-          accent="pitch"
-          width="min-w-[18rem]"
-        />
-      </div>
-
-      <Button
-        type="submit"
-        disabled={!canSubmit}
-        data-testid="add-participant-submit"
-      >
-        {busy ? 'adding…' : 'add to tournament →'}
-      </Button>
-
-      {err && <span className="text-coral font-mono text-xs basis-full">{err}</span>}
-    </form>
   );
 }
 
@@ -452,7 +209,7 @@ function ParticipantsTab({
   if (participants.length === 0) {
     return (
       <div className="text-bone/60 font-mono text-[13px]">
-        {isAdmin ? 'No participants yet. Add the first one above.' : 'No participants yet.'}
+        No participants yet.
       </div>
     );
   }
@@ -1099,7 +856,7 @@ function CopyTournamentModal({
   );
 }
 
-// --- Quick draw: randomly pair a group of players with teams in one go ---
+// --- Draft: players and teams are drawn at random, then the tournament starts ---
 
 type DrawPair = { player: Player; team: Team };
 
@@ -1112,163 +869,43 @@ function shuffled<T>(items: T[]): T[] {
   return a;
 }
 
-function plural(n: number, one: string, many = `${one}s`) {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-function CheckRow({
-  checked, onToggle, children,
-}: { checked: boolean; onToggle: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      role="checkbox"
-      aria-checked={checked}
-      onClick={onToggle}
-      className={`w-full text-left flex items-center gap-3 px-3 py-2.5 border transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
-        checked ? 'border-pitch/60 bg-pitch/[0.04]' : 'border-hairline hover:border-pitch/50'
-      }`}
-    >
-      <span
-        aria-hidden
-        className={`w-4 h-4 border flex items-center justify-center shrink-0 ${checked ? 'border-pitch bg-pitch' : 'border-bone/40'}`}
-      >
-        {checked && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
-      </span>
-      {children}
-    </button>
-  );
-}
-
-function QuickDrawModal({
-  availablePlayers,
-  availableTeams,
-  tournamentId,
-  onProgress,
-  onDone,
-  onCancel,
+function DraftPanel({
+  tournamentId, participantCount, availablePlayers, availableTeams, onChanged,
 }: {
+  tournamentId: string;
+  participantCount: number;
   availablePlayers: Player[];
   availableTeams: Team[];
-  tournamentId: string;
-  /** Called when some (not all) participants were saved, so the page can refresh. */
-  onProgress: () => void;
-  onDone: () => void;
-  onCancel: () => void;
+  onChanged: () => void;
 }) {
-  // 1 players, 2 competition, 3 teams, 4 preview.
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(
-    () => new Set(availablePlayers.map(p => p.id)),
-  );
-  // The pool is whichever teams are ticked. Picking a competition just ticks
-  // its teams; the team step lets you add or remove from there.
-  const [competitionKey, setCompetitionKey] = useState<string | null>(null);
-  const [teamIds, setTeamIds] = useState<Set<string>>(() => new Set());
-  const [showAll, setShowAll] = useState(false); // list the whole catalog, not just the competition
-  const [query, setQuery] = useState('');
-  const [pairs, setPairs] = useState<DrawPair[]>([]);
-  const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
-  const [savedCount, setSavedCount] = useState(0);
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
-  const dialogRef = useRef<HTMLDivElement>(null);
-
-  // Never close mid-save: the loop below would keep running against a
-  // dialog nobody can see.
-  const close = () => { if (!busy) onCancel(); };
-  const closeRef = useRef(close);
-  closeRef.current = close;
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closeRef.current(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, []);
-
-  // Move focus into the dialog on open and on each step; hand it back on close.
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    return () => opener?.focus?.();
-  }, []);
-  useEffect(() => { dialogRef.current?.focus(); }, [step]);
-
-  // Free teams per competition. Custom counts the whole catalog.
-  const competitionOptions = useMemo(
-    () => COMPETITIONS.map(c => ({
-      ...c,
-      count: c.key === CUSTOM_KEY ? availableTeams.length : availableTeams.filter(c.includes).length,
-    })),
+  const need = availablePlayers.length;
+  const options = useMemo(
+    () => COMPETITIONS.map(c => ({ ...c, count: availableTeams.filter(c.includes).length })),
     [availableTeams],
   );
-  const competition = competitionOptions.find(c => c.key === competitionKey) ?? null;
+  const [pickedKey, setPickedKey] = useState<string | null>(null);
+  // Until someone picks, the first competition with enough free teams is drawn.
+  const activeKey = pickedKey ?? options.find(o => o.count >= need)?.key ?? null;
+  const pool = useMemo(() => {
+    const c = options.find(o => o.key === activeKey);
+    return c ? availableTeams.filter(c.includes) : [];
+  }, [options, availableTeams, activeKey]);
 
-  function pickCompetition(key: string) {
-    // Coming back to the same competition keeps the edits made on the team step.
-    if (key !== competitionKey) {
-      const picked = competitionOptions.find(c => c.key === key);
-      setCompetitionKey(key);
-      setTeamIds(new Set(availableTeams.filter(t => picked?.includes(t)).map(t => t.id)));
-      setShowAll(key === CUSTOM_KEY);
-      setQuery('');
-    }
-    setStep(3);
-  }
-
-  // Players still waiting for a team. After a partial save the page refreshes
-  // and the saved ones drop out of availablePlayers, so this stays truthful.
-  const selectedPlayers = useMemo(
-    () => availablePlayers.filter(p => selectedIds.has(p.id)),
-    [availablePlayers, selectedIds],
-  );
-  const need = selectedPlayers.length;
-  const allSelected = availablePlayers.length > 0 && need === availablePlayers.length;
-
-  // Ticked teams that are still free (a partial save can take some away).
-  const poolTeams = useMemo(
-    () => availableTeams.filter(t => teamIds.has(t.id)),
-    [availableTeams, teamIds],
-  );
-  const poolReady = poolTeams.length >= need;
-  const shortBy = Math.max(0, need - poolTeams.length);
-
-  // A search always looks through the whole catalog: that's how you add a team
-  // from outside the competition.
-  const scoped = !!competition && competition.key !== CUSTOM_KEY && !showAll && !query.trim();
-  const visibleTeams = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = scoped && competition ? availableTeams.filter(competition.includes) : availableTeams;
-    return base
-      .filter(t => !q || [t.name, t.league, t.country].some(s => s?.toLowerCase().includes(q)))
-      .sort((a, b) =>
-        scoped
-          ? a.name.localeCompare(b.name)
-          // Whole catalog: nationals first, then clubs by league.
-          : Number(b.kind === 'national') - Number(a.kind === 'national') ||
-            (a.kind === 'club' ? a.league : '').localeCompare(b.kind === 'club' ? b.league : '') ||
-            a.name.localeCompare(b.name));
-  }, [availableTeams, query, scoped, competition]);
-  const allShownTicked = visibleTeams.length > 0 && visibleTeams.every(t => teamIds.has(t.id));
-
-  function toggleShown() {
-    const next = new Set(teamIds);
-    for (const t of visibleTeams) { if (allShownTicked) next.delete(t.id); else next.add(t.id); }
-    setTeamIds(next);
-  }
+  const [pairs, setPairs] = useState<DrawPair[]>([]);
+  const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   function draw() {
-    if (!poolReady) return;
-    const teams = shuffled(poolTeams);
-    setPairs(selectedPlayers.map((player, i) => ({ player, team: teams[i]! })));
+    const teams = shuffled(pool);
+    setPairs(need > 0 && teams.length >= need ? availablePlayers.map((player, i) => ({ player, team: teams[i]! })) : []);
     setDrawNo(n => n + 1);
   }
+  // Draw on open, and again whenever the competition or the free players change
+  // (a partial save drops the saved players out of availablePlayers).
+  useEffect(draw, [activeKey, need]);
 
-  function goToPreview() {
-    draw();
-    setStep(4);
-  }
-
-  async function confirm() {
+  async function start() {
     setErr(null);
     setBusy(true);
     const remaining = [...pairs];
@@ -1281,227 +918,65 @@ function QuickDrawModal({
           throw new Error(`Couldn't add ${player.display_name} as ${team.name}: ${e.message}`);
         }
         remaining.shift();
-        setSavedCount(c => c + 1);
       }
-      onDone();
+      await api.start(tournamentId);
+      onChanged();
     } catch (e: any) {
-      // Some pairs may already be saved. Keep only the unsaved ones on screen
-      // so a retry doesn't re-add anyone, and let the page catch up.
-      if (remaining.length < pairs.length) onProgress();
-      setPairs(remaining);
+      // Whoever was saved is already a participant; let the page catch up so
+      // a retry only draws for the rest.
+      if (remaining.length < pairs.length) onChanged();
       setErr(e.message);
       setBusy(false);
     }
   }
 
-  const titleId = 'quick-draw-title';
-  const partlySaved = savedCount > 0;
-  const heading =
-    step === 1 ? 'Select players'
-    : step === 2 ? 'Pick a competition'
-    : step === 3 ? 'Choose teams'
-    : 'Preview draw';
-  const subhead =
-    step === 1 ? 'Everyone not yet in this tournament. Pick at least 2.'
-    : step === 2 ? 'Its teams go in the draw. You can add or remove teams next.'
-    : step === 3 ? 'Each player gets a random team from your selection.'
-    : 'Nothing is saved until you add them.';
+  const drawn = need === 0 || pairs.length === need;
+  const canStart = !busy && drawn && participantCount + pairs.length >= 2;
+
+  if (participantCount + need < 2) {
+    return <p className="font-mono text-[13px] text-coral/90">Add at least 2 players on the Players page.</p>;
+  }
 
   return (
-    <div
-      data-testid="quick-draw-dialog"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 backdrop-blur-sm"
-      // A stray click on the backdrop shouldn't throw away a draw in progress.
-      onClick={step === 1 ? close : undefined}
-    >
-      <div
-        ref={dialogRef}
-        tabIndex={-1}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={titleId}
-        className="relative bg-ash border border-hairline max-w-lg w-[90%] h-[min(42rem,92vh)] p-7 shadow-xl flex flex-col outline-none"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between">
-          <div className="label-eyebrow text-coral">/ quick draw</div>
-          <div role="img" aria-label={`Step ${step} of 4`} className="flex gap-1.5">
-            {[1, 2, 3, 4].map(n => (
-              <span key={n} className={`h-[2px] w-6 transition-colors ${n <= step ? 'bg-pitch' : 'bg-hairline'}`} />
-            ))}
-          </div>
+    <div className="flex flex-col gap-6">
+      {need > 0 && (
+        <CompetitionPicker
+          options={options}
+          selectedKey={activeKey}
+          need={need}
+          onPick={key => { if (key === activeKey) draw(); else setPickedKey(key); }}
+        />
+      )}
+
+      {need > 0 && !drawn && (
+        <p className="font-mono text-[13px] text-coral/90">Not enough free teams for {need} players.</p>
+      )}
+
+      {pairs.length > 0 && (
+        <div className="grid md:grid-cols-2 gap-3">
+          {pairs.map(({ player, team }, i) => (
+            <div
+              key={`${drawNo}-${player.id}`}
+              className="draw-reveal flex items-center gap-4 border border-hairline px-4 py-3"
+              style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}
+            >
+              <span className="font-display text-2xl text-bone leading-none w-[38%] truncate">{player.display_name}</span>
+              <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
+              <span className="text-[14px] text-bone flex-1 truncate">{team.name}</span>
+            </div>
+          ))}
         </div>
-        <h2 id={titleId} className="font-display text-4xl leading-none text-bone mt-3">{heading}</h2>
-        <p className="mt-2 text-[13px] text-bone/60">{subhead}</p>
+      )}
 
-        {step === 1 && (
-          <>
-            <div role="group" aria-label="Players" className="mt-5 flex-1 overflow-y-auto space-y-2 min-h-0 thin-scroll">
-              <CheckRow
-                checked={allSelected}
-                onToggle={() => setSelectedIds(allSelected ? new Set() : new Set(availablePlayers.map(p => p.id)))}
-              >
-                <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">Select all</span>
-              </CheckRow>
-              {availablePlayers.map(p => (
-                <CheckRow
-                  key={p.id}
-                  checked={selectedIds.has(p.id)}
-                  onToggle={() => {
-                    const next = new Set(selectedIds);
-                    if (next.has(p.id)) next.delete(p.id); else next.add(p.id);
-                    setSelectedIds(next);
-                  }}
-                >
-                  <span className="font-display text-xl text-bone leading-none">{p.display_name}</span>
-                </CheckRow>
-              ))}
-            </div>
-            <div className="mt-5 flex items-center justify-between gap-3 border-t border-hairline pt-5">
-              <span className="font-mono text-[12px] text-bone/60 number-display">
-                {need} of {availablePlayers.length} selected
-              </span>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" onClick={close}>Cancel</Button>
-                <Button disabled={need < 2} onClick={() => setStep(2)}>Next →</Button>
-              </div>
-            </div>
-          </>
-        )}
+      {err && <div role="alert" className="font-mono text-xs text-coral">{err}</div>}
 
-        {step === 2 && (
-          <>
-            {/* Padding leaves room for the selection outline, which the scroller would clip. */}
-            <div className="mt-4 flex-1 overflow-y-auto min-h-0 thin-scroll p-1">
-              <CompetitionPicker
-                options={competitionOptions}
-                selectedKey={competitionKey}
-                need={need}
-                onPick={pickCompetition}
-              />
-            </div>
-            <div className="mt-4 flex items-center justify-between border-t border-hairline pt-5 shrink-0">
-              <Button variant="ghost" onClick={() => setStep(1)}>← Back</Button>
-              <Button disabled={!competition} onClick={() => setStep(3)}>Next →</Button>
-            </div>
-          </>
+      <div className="flex items-center justify-end gap-3">
+        {pairs.length > 0 && (
+          <Button variant="ghost" disabled={busy} onClick={draw}>Shuffle</Button>
         )}
-
-        {step === 3 && (
-          <>
-            {competition && (
-              <div className="mt-4 flex items-center gap-3 shrink-0">
-                {competition.logo && (
-                  <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center bg-chalk p-1">
-                    <img src={competition.logo} alt="" draggable={false} className="h-full w-full object-contain" />
-                  </span>
-                )}
-                <span className="font-display text-2xl leading-none text-bone">{competition.name}</span>
-                {competition.key !== CUSTOM_KEY && (
-                  <button
-                    type="button"
-                    onClick={() => setShowAll(v => !v)}
-                    className="ml-auto font-mono text-[12px] text-bone/60 underline underline-offset-4 decoration-bone/30 hover:text-pitch focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch"
-                  >
-                    {showAll ? `Only ${competition.name}` : 'Add other teams'}
-                  </button>
-                )}
-              </div>
-            )}
-            <Input
-              aria-label="Search teams"
-              placeholder="Search all teams by name, league or country"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              className="mt-3 shrink-0 text-[14px]"
-            />
-            <div role="group" aria-label="Teams" className="mt-3 flex-1 overflow-y-auto space-y-1.5 min-h-0 thin-scroll">
-              {availableTeams.length === 0 && (
-                <p className="font-mono text-[13px] text-coral">No free teams left to draw from.</p>
-              )}
-              {availableTeams.length > 0 && visibleTeams.length === 0 && (
-                <p className="font-mono text-[13px] text-bone/60">No teams match “{query.trim()}”.</p>
-              )}
-              {visibleTeams.length > 0 && (
-                <CheckRow checked={allShownTicked} onToggle={toggleShown}>
-                  <span className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70">
-                    {query.trim() ? `Select shown (${visibleTeams.length})` : `Select all (${visibleTeams.length})`}
-                  </span>
-                </CheckRow>
-              )}
-              {visibleTeams.map(t => (
-                <CheckRow
-                  key={t.id}
-                  checked={teamIds.has(t.id)}
-                  onToggle={() => {
-                    const next = new Set(teamIds);
-                    if (next.has(t.id)) next.delete(t.id); else next.add(t.id);
-                    setTeamIds(next);
-                  }}
-                >
-                  <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
-                  <span className="text-[14px] text-bone flex-1 truncate">{t.name}</span>
-                  {t.kind === 'club' && (
-                    <span className="font-mono text-[11px] text-bone/60 shrink-0 truncate max-w-[40%]">{t.league}</span>
-                  )}
-                </CheckRow>
-              ))}
-            </div>
-            <div className="mt-4 shrink-0" aria-live="polite">
-              <p className={`font-mono text-[12px] ${poolReady ? 'text-bone/60' : 'text-coral'}`}>
-                {availableTeams.length < need
-                  ? `Only ${plural(availableTeams.length, 'team')} left for ${plural(need, 'player')}. Go back and deselect players.`
-                  : poolReady
-                    ? `${plural(poolTeams.length, 'team')} in the draw for ${plural(need, 'player')}.`
-                    : `${poolTeams.length} selected. Pick ${plural(shortBy, 'more team')}.`}
-              </p>
-              <div className="mt-2 h-[2px] bg-hairline" role="presentation">
-                <div
-                  className={`h-full transition-[width] duration-200 ${poolReady ? 'bg-pitch' : 'bg-coral'}`}
-                  style={{ width: `${need > 0 ? Math.min(100, (poolTeams.length / need) * 100) : 0}%` }}
-                />
-              </div>
-            </div>
-            <div className="mt-4 flex items-center justify-between border-t border-hairline pt-5 shrink-0">
-              <Button variant="ghost" onClick={() => setStep(2)}>← Back</Button>
-              <Button disabled={!poolReady} onClick={goToPreview}>Preview draw →</Button>
-            </div>
-          </>
-        )}
-
-        {step === 4 && (
-          <>
-            <div className="mt-5 flex-1 overflow-y-auto min-h-0 space-y-2 thin-scroll">
-              {pairs.map(({ player, team }, i) => (
-                <div
-                  key={`${drawNo}-${player.id}`}
-                  className="draw-reveal flex items-center gap-3 px-3 py-2.5 border border-hairline"
-                  style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}
-                >
-                  <span className="font-display text-xl text-bone leading-none w-[36%] truncate">{player.display_name}</span>
-                  <span aria-hidden className="text-bone/30 font-mono text-[12px]">→</span>
-                  <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
-                  <span className="text-[14px] text-bone flex-1 truncate">{team.name}</span>
-                </div>
-              ))}
-            </div>
-            {err && (
-              <div role="alert" className="mt-3 text-coral font-mono text-xs">
-                {err}
-                {partlySaved && ` ${plural(savedCount, 'participant')} already added.`}
-              </div>
-            )}
-            <div className="mt-5 flex items-center justify-between border-t border-hairline pt-5">
-              <Button variant="ghost" disabled={busy || partlySaved} onClick={() => setStep(3)}>← Back</Button>
-              <div className="flex items-center gap-3">
-                <Button variant="ghost" disabled={busy || !poolReady} onClick={draw}>Shuffle ↺</Button>
-                <Button disabled={busy || pairs.length === 0} data-testid="quick-draw-confirm" onClick={confirm}>
-                  {busy ? 'Adding…' : `Add ${plural(pairs.length, 'participant')}`}
-                </Button>
-              </div>
-            </div>
-          </>
-        )}
+        <Button disabled={!canStart} data-testid="start-tournament" onClick={start}>
+          {busy ? 'Starting…' : 'Start tournament'}
+        </Button>
       </div>
     </div>
   );
