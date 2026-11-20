@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.3.0](https://github.com/paguos/pitch/compare/v0.2.0...v0.3.0) (2026-11-20)
+
+
+### Features
+
+* **frontend:** draw in three steps: competition, teams, draw ([#51](https://github.com/paguos/pitch/issues/51)) ([a2022e5](https://github.com/paguos/pitch/commit/a2022e5bdef7a7f662c16522f8636905208ff0bc))
+* **frontend:** hide viewer badge on the players list ([#47](https://github.com/paguos/pitch/issues/47)) ([a653c43](https://github.com/paguos/pitch/commit/a653c437657ad7a1b9c541f536fc33566904b014))
+* **frontend:** move player row actions into a menu ([#46](https://github.com/paguos/pitch/issues/46)) ([61552be](https://github.com/paguos/pitch/commit/61552bea0ae841c888ad0fe1e289858bc672aa2f))
+* **frontend:** score a match by picking its two sides ([#48](https://github.com/paguos/pitch/issues/48)) ([2d5ba24](https://github.com/paguos/pitch/commit/2d5ba245ca1aef642c794a529968a68a37bee067))
+* **frontend:** start every tournament with a random draw ([#50](https://github.com/paguos/pitch/issues/50)) ([d553139](https://github.com/paguos/pitch/commit/d553139c9014e9db408b5314d82e55dccfa18c5b))
+* **frontend:** trim score entry copy and say "team" instead of "club" ([#49](https://github.com/paguos/pitch/issues/49)) ([885f659](https://github.com/paguos/pitch/commit/885f6598b6c5740775b0b683cde3039487c3d575))
+* let every signed-in user view other players' profiles ([#44](https://github.com/paguos/pitch/issues/44)) ([a9ba1df](https://github.com/paguos/pitch/commit/a9ba1df557d3c17155703ed21759e9faba1e88f7))
+
+
+### Bug Fixes
+
+* **frontend:** say "result" instead of "score" when submitting results ([#52](https://github.com/paguos/pitch/issues/52)) ([48bd5f1](https://github.com/paguos/pitch/commit/48bd5f149221f90f82ee131af355ccb6326a61fc))
+
 ## [0.2.0](https://github.com/paguos/pitch/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 
