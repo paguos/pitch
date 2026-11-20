@@ -7,6 +7,7 @@ import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
 import { AddTeamsPanel } from '../components/AddTeamsPanel';
+import { PlayerPicker } from '../components/PlayerPicker';
 import { COMPETITIONS, teamOrigin } from '../lib/competitions';
 
 type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
@@ -870,8 +871,8 @@ function shuffled<T>(items: T[]): T[] {
   return a;
 }
 
-type DraftStep = 'competition' | 'teams' | 'draw';
-const DRAFT_STEPS: DraftStep[] = ['competition', 'teams', 'draw'];
+type DraftStep = 'players' | 'competition' | 'teams' | 'draw';
+const DRAFT_STEPS: DraftStep[] = ['players', 'competition', 'teams', 'draw'];
 
 function DraftPanel({
   tournamentId, participantCount, availablePlayers, availableTeams, onChanged,
@@ -882,12 +883,19 @@ function DraftPanel({
   availableTeams: Team[];
   onChanged: () => void;
 }) {
-  const need = availablePlayers.length;
+  // Players left out of this draw. Everyone starts in, so the first step is
+  // only about taking people out.
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(() => new Set());
+  const chosen = useMemo(
+    () => availablePlayers.filter(p => !excludedIds.has(p.id)),
+    [availablePlayers, excludedIds],
+  );
+  const need = chosen.length;
   const options = useMemo(
     () => COMPETITIONS.map(c => ({ ...c, count: availableTeams.filter(c.includes).length })),
     [availableTeams],
   );
-  const [step, setStep] = useState<DraftStep>('competition');
+  const [step, setStep] = useState<DraftStep>('players');
   // Until someone picks, the first competition with enough free teams is selected.
   const [pickedKey, setPickedKey] = useState<string | null>(null);
   const competitionKey = pickedKey ?? options.find(o => o.count >= need)?.key ?? null;
@@ -949,7 +957,7 @@ function DraftPanel({
 
   function draw(from = pool) {
     const teams = shuffled(from);
-    setPairs(availablePlayers.map((player, i) => ({ player, team: teams[i]! })));
+    setPairs(chosen.map((player, i) => ({ player, team: teams[i]! })));
     setDrawNo(n => n + 1);
   }
 
@@ -985,12 +993,12 @@ function DraftPanel({
     }
   }
 
-  if (participantCount + need < 2) {
+  if (participantCount + availablePlayers.length < 2) {
     return <p className="font-mono text-[13px] text-coral/90">Add at least 2 players on the Players page.</p>;
   }
 
   // Everyone already has a team (a half-finished earlier attempt): just start.
-  if (need === 0) {
+  if (availablePlayers.length === 0) {
     return (
       <div className="flex flex-col gap-4">
         {err && <div role="alert" className="font-mono text-xs text-coral">{err}</div>}
@@ -1012,6 +1020,7 @@ function DraftPanel({
   }
 
   const stepNo = DRAFT_STEPS.indexOf(step) + 1;
+  const minPlayersMet = participantCount + need >= 2;
 
   return (
     <div className="flex flex-col gap-6">
@@ -1021,6 +1030,34 @@ function DraftPanel({
         ))}
       </div>
 
+      {step === 'players' && (
+        <>
+          <PlayerPicker
+            players={availablePlayers}
+            excludedIds={excludedIds}
+            onToggle={id => setExcludedIds(prev => {
+              const next = new Set(prev);
+              if (next.has(id)) next.delete(id); else next.add(id);
+              return next;
+            })}
+            onToggleAll={() => setExcludedIds(
+              availablePlayers.every(p => !excludedIds.has(p.id))
+                ? new Set(availablePlayers.map(p => p.id))
+                : new Set(),
+            )}
+          />
+          <div className="flex items-center justify-end gap-4">
+            <span
+              aria-live="polite"
+              className={`font-mono text-[12px] number-display ${minPlayersMet ? 'text-bone/60' : 'text-coral'}`}
+            >
+              {minPlayersMet ? `${need} playing` : 'Pick at least 2'}
+            </span>
+            <Button disabled={!minPlayersMet} onClick={() => setStep('competition')}>Next</Button>
+          </div>
+        </>
+      )}
+
       {step === 'competition' && (
         <>
           <CompetitionPicker
@@ -1029,8 +1066,9 @@ function DraftPanel({
             need={need}
             onPick={setPickedKey}
           />
-          <div className="flex justify-end">
-            <Button disabled={!competition} onClick={toTeams}>Next</Button>
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" onClick={() => setStep('players')}>Back</Button>
+            <Button disabled={!competition || competition.count < need} onClick={toTeams}>Next</Button>
           </div>
         </>
       )}
