@@ -95,9 +95,7 @@ export default function PlayersPage() {
                     <span className="text-[12px] text-bone/60">add an email to give access</span>
                   ) : (
                     <>
-                      <Badge tone={p.role === 'admin' ? 'coral' : 'neutral'}>
-                        {p.role === 'admin' ? 'admin' : 'viewer'}
-                      </Badge>
+                      {p.role === 'admin' && <Badge tone="coral">admin</Badge>}
                       <span className="text-[12px] text-bone/55">{p.signed_in ? 'signed in' : 'not signed in yet'}</span>
                     </>
                   )}
