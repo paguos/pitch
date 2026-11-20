@@ -214,9 +214,9 @@ export function ScoreEntry({
 
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
         <div className="flex items-baseline gap-4">
-          <h2 id="score-entry-title" className="font-display text-3xl leading-none text-bone">Score a match</h2>
+          <h2 id="score-entry-title" className="font-display text-3xl leading-none text-bone">Submit a result</h2>
           <span className="font-mono text-[12px] text-bone/60 number-display">
-            {remaining === 0 ? 'all scored' : `${remaining} left`}
+            {remaining === 0 ? 'all results in' : `${remaining} left`}
           </span>
         </div>
         <div role="radiogroup" aria-label="Name matches by" className="flex items-center gap-1 font-mono text-[12px]">
@@ -290,10 +290,10 @@ export function ScoreEntry({
             {err ? (
               <span role="alert" className="text-coral">{err}</span>
             ) : alreadyScored ? (
-              <span className="text-coral">Already scored. Saving replaces the result.</span>
+              <span className="text-coral">Result already submitted. Saving replaces it.</span>
             ) : chipEntrant ? (
               chipOpen.length === 0 ? (
-                <span className="text-bone/60">{primary(chipEntrant, mode)} has played everyone. Pick an opponent to correct a score.</span>
+                <span className="text-bone/60">{primary(chipEntrant, mode)} has played everyone. Pick an opponent to correct a result.</span>
               ) : (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-bone/60">{primary(chipEntrant, mode)} still plays</span>
@@ -319,7 +319,7 @@ export function ScoreEntry({
             ) : null}
           </div>
           <Button type="submit" data-testid="score-entry-submit" disabled={!match || busy}>
-            {busy ? 'Saving…' : alreadyScored ? 'Update score' : 'Save score'}
+            {busy ? 'Saving…' : alreadyScored ? 'Update result' : 'Save result'}
           </Button>
         </div>
       </form>

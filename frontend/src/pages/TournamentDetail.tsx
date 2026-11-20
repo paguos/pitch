@@ -326,7 +326,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
             </>
           ) : isAdmin ? (
             <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
-              {reported ? 'edit' : 'score'} →
+              {reported ? 'edit' : 'result'} →
             </button>
           ) : null}
         </div>
@@ -386,7 +386,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
               onClick={() => setEditing(true)}
             >
-              {reported ? 'edit' : 'score'} →
+              {reported ? 'edit' : 'result'} →
             </button>
           ) : null}
         </div>
@@ -619,7 +619,7 @@ function BracketCard({
             className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
             onClick={() => setEditing(true)}
           >
-            {completed ? 'edit' : 'score'} →
+            {completed ? 'edit' : 'result'} →
           </button>
         )}
       </div>
@@ -682,7 +682,7 @@ function ActiveActions({
         {total > 0 && (
           <div className="font-mono text-[12px] uppercase tracking-widest2 text-bone/60">
             {allScored ? (
-              <span className="text-pitch">all matches scored · ready to end</span>
+              <span className="text-pitch">all results in · ready to end</span>
             ) : (
               <>complete <span className="text-coral">{String(remaining).padStart(2,'0')}</span> more match{remaining === 1 ? '' : 'es'} or end anyway</>
             )}
@@ -711,7 +711,7 @@ function ActiveActions({
         body={
           <>
             <span className="text-coral font-mono uppercase tracking-widest2 text-[12px]">
-              {remaining} match{remaining === 1 ? '' : 'es'} still unscored
+              {remaining} match{remaining === 1 ? '' : 'es'} still without a result
             </span>
             <div className="mt-3">
               Ending now freezes the tournament. The current standings will be
