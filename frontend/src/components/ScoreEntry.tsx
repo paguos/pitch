@@ -9,11 +9,11 @@ import { TeamCrest } from './TeamCrest';
 //
 // FIFA plays its own order, so the draw order in the list is rarely the order
 // a result comes in. Instead of hunting for the row, pick the two sides (by
-// club or by player, search matches both) and the app finds the match. Picking
+// team or by player, search matches both) and the app finds the match. Picking
 // one side narrows the other to its opponents, so a wrong pairing can't be
 // built. Works for league fixtures and for the playable knockout matches.
 
-type Mode = 'club' | 'player';
+type Mode = 'team' | 'player';
 type SideKey = 'a' | 'b';
 type FocusTarget = SideKey | 'score';
 
@@ -24,7 +24,7 @@ type PickerHandle = { focus: () => void };
 const MODE_KEY = 'pitch.scoreEntry.mode';
 
 function readMode(): Mode {
-  try { return localStorage.getItem(MODE_KEY) === 'player' ? 'player' : 'club'; } catch { return 'club'; }
+  try { return localStorage.getItem(MODE_KEY) === 'player' ? 'player' : 'team'; } catch { return 'team'; }
 }
 function writeMode(m: Mode) {
   try { localStorage.setItem(MODE_KEY, m); } catch { /* storage unavailable: keep it for this visit only */ }
@@ -33,8 +33,8 @@ function writeMode(m: Mode) {
 const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
 const pairKey = (x: string, y: string) => (x < y ? `${x}|${y}` : `${y}|${x}`);
 const isScored = (m: Match) => m.status === 'REPORTED' || m.status === 'COMPLETED';
-const primary = (e: Entrant, mode: Mode) => (mode === 'club' ? e.team : e.player);
-const secondary = (e: Entrant, mode: Mode) => (mode === 'club' ? e.player : e.team);
+const primary = (e: Entrant, mode: Mode) => (mode === 'team' ? e.team : e.player);
+const secondary = (e: Entrant, mode: Mode) => (mode === 'team' ? e.player : e.team);
 const clampGoals = (n: number) => (Number.isFinite(n) ? Math.min(99, Math.max(0, n)) : 0);
 
 export function ScoreEntry({
@@ -219,9 +219,8 @@ export function ScoreEntry({
             {remaining === 0 ? 'all scored' : `${remaining} left`}
           </span>
         </div>
-        <div role="radiogroup" aria-label="Show matches by" className="flex items-center gap-1 font-mono text-[12px]">
-          <span className="mr-1 text-bone/60">Show</span>
-          {(['club', 'player'] as Mode[]).map(m => (
+        <div role="radiogroup" aria-label="Name matches by" className="flex items-center gap-1 font-mono text-[12px]">
+          {(['team', 'player'] as Mode[]).map(m => (
             <button
               key={m}
               type="button"
@@ -232,7 +231,7 @@ export function ScoreEntry({
                 mode === m ? 'border-pitch/60 text-pitch' : 'border-hairline text-bone/65 hover:text-bone'
               }`}
             >
-              {m === 'club' ? 'Club' : 'Player'}
+              {m === 'team' ? 'Team' : 'Player'}
             </button>
           ))}
         </div>
@@ -317,8 +316,6 @@ export function ScoreEntry({
               )
             ) : saved ? (
               <span data-testid="score-entry-saved" className="text-pitch">Saved {saved}</span>
-            ) : !match ? (
-              <span className="text-bone/60">Pick either side. The other list only shows who they can still play.</span>
             ) : null}
           </div>
           <Button type="submit" data-testid="score-entry-submit" disabled={!match || busy}>
@@ -450,7 +447,7 @@ const SidePicker = forwardRef<PickerHandle, {
             aria-activedescendant={open && filtered[active] ? `${listId}-${active}` : undefined}
             autoComplete="off"
             spellCheck={false}
-            placeholder="Search club or player"
+            placeholder="Search team or player"
             value={query}
             data-testid={`${testId}-input`}
             onChange={e => { setQuery(e.target.value); setHi(0); setOpen(true); }}
@@ -504,7 +501,7 @@ const SidePicker = forwardRef<PickerHandle, {
         >
           {filtered.length === 0 && (
             <li role="presentation" className="px-3 py-3 font-mono text-[12px] text-bone/60">
-              {query.trim() ? `No club or player matches “${query.trim()}”.` : 'Nobody to pick here.'}
+              {query.trim() ? `No team or player matches “${query.trim()}”.` : 'Nobody to pick here.'}
             </li>
           )}
           {filtered.map((o, i) => (
