@@ -1,8 +1,8 @@
 import type { Team } from './api';
 
 /**
- * The competitions offered as Quick draw presets. A competition only decides
- * which catalog teams start ticked — nothing here is stored server-side.
+ * The competitions the draw can pick teams from. A competition only decides
+ * which catalog teams are in the draw — nothing here is stored server-side.
  *
  * Logos live in /public/logos/leagues (football-logos.cc, personal use only —
  * see CLAUDE.md).
@@ -11,7 +11,7 @@ export type Competition = {
   key: string;
   name: string;
   logo: string | null;
-  /** Does this catalog team belong to the competition's starting pool? */
+  /** Does this catalog team belong to the competition's draw pool? */
   includes: (t: Team) => boolean;
 };
 
@@ -42,8 +42,6 @@ const CHAMPIONS_LEAGUE_CLUBS = new Set([
   'Napoli',
 ]);
 
-export const CUSTOM_KEY = 'custom';
-
 export const COMPETITIONS: Competition[] = [
   { key: 'premier-league', name: 'Premier League', logo: '/logos/leagues/premier-league.png', includes: inLeague('Premier League') },
   { key: 'bundesliga', name: 'Bundesliga', logo: '/logos/leagues/bundesliga.png', includes: inLeague('Bundesliga') },
@@ -55,6 +53,4 @@ export const COMPETITIONS: Competition[] = [
   },
   { key: 'la-liga', name: 'La Liga', logo: '/logos/leagues/la-liga.png', includes: inLeague('La Liga') },
   { key: 'serie-a', name: 'Serie A', logo: '/logos/leagues/serie-a.png', includes: inLeague('Serie A') },
-  // Starts empty; the team step shows the whole catalog (clubs and nationals).
-  { key: CUSTOM_KEY, name: 'Custom', logo: null, includes: () => false },
 ];
