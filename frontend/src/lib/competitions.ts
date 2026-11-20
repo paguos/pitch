@@ -54,3 +54,14 @@ export const COMPETITIONS: Competition[] = [
   { key: 'la-liga', name: 'La Liga', logo: '/logos/leagues/la-liga.png', includes: inLeague('La Liga') },
   { key: 'serie-a', name: 'Serie A', logo: '/logos/leagues/serie-a.png', includes: inLeague('Serie A') },
 ];
+
+/** Where a team comes from, for labels: its league, or "National team". */
+export const teamOrigin = (t: Team) => (t.kind === 'national' ? 'National team' : t.league);
+
+const fold = (s: string) => s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+
+/** Search by name or country, ignoring case and accents. */
+export function matchesQuery(t: Team, query: string): boolean {
+  const q = fold(query.trim());
+  return q === '' || fold(t.name).includes(q) || fold(t.country).includes(q);
+}

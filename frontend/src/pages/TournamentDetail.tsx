@@ -6,7 +6,8 @@ import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../compo
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
-import { COMPETITIONS } from '../lib/competitions';
+import { AddTeamsPanel } from '../components/AddTeamsPanel';
+import { COMPETITIONS, teamOrigin } from '../lib/competitions';
 
 type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
@@ -895,6 +896,11 @@ function DraftPanel({
   // ones start ticked.
   const [teamIds, setTeamIds] = useState<Set<string>>(() => new Set());
   const [tickedFor, setTickedFor] = useState<string | null>(null); // competition the ticks belong to
+  // Teams added from outside the competition. They survive a change of
+  // competition, so they live apart from the ticks.
+  const [extraIds, setExtraIds] = useState<Set<string>>(() => new Set());
+  const [adding, setAdding] = useState(false);
+  const addTileRef = useRef<HTMLButtonElement>(null);
   const [pairs, setPairs] = useState<DrawPair[]>([]);
   const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
   const [busy, setBusy] = useState(false);
@@ -904,8 +910,18 @@ function DraftPanel({
     () => (competition ? availableTeams.filter(competition.includes).sort((a, b) => a.name.localeCompare(b.name)) : []),
     [availableTeams, competition],
   );
-  // Ticked teams that are still free (a partial save can take some away).
-  const pool = useMemo(() => availableTeams.filter(t => teamIds.has(t.id)), [availableTeams, teamIds]);
+  const competitionIds = useMemo(() => new Set(competitionTeams.map(t => t.id)), [competitionTeams]);
+  // Added teams still free and not already in the competition's own list.
+  const extras = useMemo(
+    () => availableTeams.filter(t => extraIds.has(t.id) && !competitionIds.has(t.id)).sort((a, b) => a.name.localeCompare(b.name)),
+    [availableTeams, extraIds, competitionIds],
+  );
+  const addCandidates = useMemo(() => availableTeams.filter(t => !competitionIds.has(t.id)), [availableTeams, competitionIds]);
+  // Ticked or added teams that are still free (a partial save can take some away).
+  const pool = useMemo(
+    () => availableTeams.filter(t => teamIds.has(t.id) || (extraIds.has(t.id) && !competitionIds.has(t.id))),
+    [availableTeams, teamIds, extraIds, competitionIds],
+  );
   const poolReady = pool.length >= need;
   const allTicked = competitionTeams.length > 0 && competitionTeams.every(t => teamIds.has(t.id));
 
@@ -916,6 +932,19 @@ function DraftPanel({
       setTeamIds(new Set(competitionTeams.map(t => t.id)));
     }
     setStep('teams');
+  }
+
+  function toggleExtra(team: Team) {
+    setExtraIds(prev => {
+      const next = new Set(prev);
+      if (next.has(team.id)) next.delete(team.id); else next.add(team.id);
+      return next;
+    });
+  }
+
+  function closeAdding() {
+    setAdding(false);
+    requestAnimationFrame(() => addTileRef.current?.focus());
   }
 
   function draw(from = pool) {
@@ -1053,7 +1082,50 @@ function DraftPanel({
                 </button>
               );
             })}
+            {extras.map(t => (
+              <button
+                key={t.id}
+                type="button"
+                aria-label={`Remove ${t.name}`}
+                onClick={() => toggleExtra(t)}
+                className="group flex items-center gap-3 border border-pitch/60 bg-pitch/[0.04] px-3 py-2.5 text-left transition-colors hover:border-coral/70 focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch"
+              >
+                <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
+                <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="truncate text-[14px] leading-tight text-bone">{t.name}</span>
+                  <span className="truncate font-mono text-[11px] leading-tight text-bone/50">{teamOrigin(t)}</span>
+                </span>
+                <span
+                  aria-hidden
+                  className="flex h-4 w-4 shrink-0 items-center justify-center border border-pitch bg-pitch text-[11px] font-bold leading-none text-ink group-hover:border-coral group-hover:bg-coral"
+                >
+                  <span className="group-hover:hidden">✓</span>
+                  <span className="hidden group-hover:inline">×</span>
+                </span>
+              </button>
+            ))}
+            <button
+              ref={addTileRef}
+              type="button"
+              aria-expanded={adding}
+              onClick={() => (adding ? closeAdding() : setAdding(true))}
+              className={`flex items-center justify-center gap-2 border border-dashed px-3 py-2.5 text-[14px] transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
+                adding ? 'border-pitch text-pitch' : 'border-bone/30 text-bone/70 hover:border-pitch/60 hover:text-bone'
+              }`}
+            >
+              <span aria-hidden className="font-mono">+</span>
+              Add teams
+            </button>
           </div>
+
+          {adding && (
+            <AddTeamsPanel
+              candidates={addCandidates}
+              addedIds={extraIds}
+              onToggle={toggleExtra}
+              onClose={closeAdding}
+            />
+          )}
 
           <div className="flex items-center justify-between gap-3">
             <Button variant="ghost" onClick={() => setStep('competition')}>Back</Button>
