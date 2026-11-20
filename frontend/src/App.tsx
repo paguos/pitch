@@ -7,6 +7,7 @@ import TournamentNew from './pages/TournamentNew';
 import TournamentDetail from './pages/TournamentDetail';
 import PlayersPage from './pages/Players';
 import MyResultsPage from './pages/MyResults';
+import LeaderboardPage from './pages/Leaderboard';
 import ProfilePage from './pages/Profile';
 
 export default function App() {
@@ -28,6 +29,7 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="/players/:id" element={<ProfilePage />} />
+        <Route path="/leaderboard/:stat?" element={<LeaderboardPage />} />
         <Route path="/tournaments/new" element={isAdmin ? <TournamentNew /> : <Navigate to="/" replace />} />
         <Route path="/tournaments/:id" element={<TournamentDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />

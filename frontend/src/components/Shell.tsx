@@ -28,6 +28,7 @@ function getLocalTzLabel(d: Date): string {
 const BASE_LINKS = [
   { to: '/', label: 'Tournaments', exact: true },
   { to: '/players', label: 'Players', exact: false },
+  { to: '/leaderboard', label: 'Leaderboard', exact: false },
 ];
 const MY_RESULTS_LINK = { to: '/me', label: 'My results', exact: false };
 
