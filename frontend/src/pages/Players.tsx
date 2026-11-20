@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input } from '../components/ui';
+import { RowMenu } from '../components/RowMenu';
 
 export default function PlayersPage() {
   const { isAdmin } = useAuth();
@@ -54,22 +55,22 @@ export default function PlayersPage() {
         <Card>
           <div className="hidden sm:grid grid-cols-12 gap-4 px-5 py-3 border-b border-hairline label-eyebrow">
             <div className="col-span-1">#</div>
-            <div className={isAdmin ? 'col-span-2' : 'col-span-8'}>Name</div>
+            <div className={isAdmin ? 'col-span-3' : 'col-span-8'}>Name</div>
             {isAdmin && <div className="col-span-3">Email</div>}
             {isAdmin && <div className="col-span-2">Access</div>}
             <div className={`${isAdmin ? 'col-span-2' : 'col-span-3'} text-right`}>Created</div>
-            {isAdmin && <div className="col-span-2 text-right">Actions</div>}
+            {isAdmin && <div className="col-span-1"><span className="sr-only">Actions</span></div>}
           </div>
           {players.map((p, i) => (
             <div
               key={p.id}
               data-testid={`player-row-${p.display_name}`}
-              className="flex flex-col gap-1.5 px-5 py-4 border-b border-hairline last:border-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center"
+              className={`relative flex flex-col gap-1.5 px-5 py-4 border-b border-hairline last:border-0 sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center ${isAdmin ? 'pr-16 sm:pr-5' : ''}`}
             >
               <div className="hidden sm:block col-span-1 font-mono text-[13px] text-bone/55 number-display">
                 {String(i + 1).padStart(2, '0')}
               </div>
-              <div className={isAdmin ? 'col-span-2' : 'col-span-8'}>
+              <div className={isAdmin ? 'col-span-3' : 'col-span-8'}>
                 <div className="flex items-baseline gap-2 sm:block">
                   <span className="sm:hidden font-mono text-[12px] text-bone/60 number-display">
                     {String(i + 1).padStart(2, '0')}
@@ -98,40 +99,31 @@ export default function PlayersPage() {
                         {p.role === 'admin' ? 'admin' : 'viewer'}
                       </Badge>
                       <span className="text-[12px] text-bone/55">{p.signed_in ? 'signed in' : 'not signed in yet'}</span>
-                      <button
-                        data-testid={`player-role-${p.display_name}`}
-                        onClick={() => setRoleTarget(p)}
-                        className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70 hover:text-pitch"
-                      >
-                        {p.role === 'admin' ? 'remove admin' : 'make admin'}
-                      </button>
                     </>
                   )}
                 </div>
               )}
-              <div className={`hidden sm:block ${isAdmin ? 'col-span-2' : 'col-span-3'} text-right font-mono text-[12px] text-bone/60 number-display whitespace-nowrap`}>
+              <div className={`${isAdmin ? 'sm:col-span-2' : 'sm:col-span-3'} sm:text-right font-mono text-[11px] sm:text-[12px] text-bone/60 number-display whitespace-nowrap`}>
                 {new Date(p.created_at).toISOString().slice(0, 10)}
               </div>
               {isAdmin && (
-              <div className="col-span-2 flex items-center sm:justify-end gap-3">
-                <button
-                  data-testid={`player-edit-${p.display_name}`}
-                  onClick={() => setEditing(p)}
-                  className="font-mono text-[12px] uppercase tracking-widest2 text-bone/70 hover:text-pitch"
-                >
-                  edit
-                </button>
-                <button
-                  data-testid={`player-delete-${p.display_name}`}
-                  onClick={() => setPendingDelete(p)}
-                  className="font-mono text-[12px] uppercase tracking-widest2 text-coral/85 hover:text-coral"
-                >
-                  delete
-                </button>
-                <span className="sm:hidden font-mono text-[11px] text-bone/60 number-display ml-auto">
-                  {new Date(p.created_at).toISOString().slice(0, 10)}
-                </span>
-              </div>
+                <div className="absolute right-3 top-3 sm:static sm:col-span-1 flex sm:justify-end">
+                  <RowMenu
+                    label={`Actions for ${p.display_name}`}
+                    testId={`player-menu-${p.display_name}`}
+                    items={[
+                      { label: 'Edit', testId: `player-edit-${p.display_name}`, onSelect: () => setEditing(p) },
+                      {
+                        label: p.role === 'admin' ? 'Remove admin' : 'Make admin',
+                        testId: `player-role-${p.display_name}`,
+                        disabled: !p.email,
+                        hint: !p.email ? 'Add an email first' : undefined,
+                        onSelect: () => setRoleTarget(p),
+                      },
+                      { label: 'Delete', tone: 'danger', testId: `player-delete-${p.display_name}`, onSelect: () => setPendingDelete(p) },
+                    ]}
+                  />
+                </div>
               )}
             </div>
           ))}
