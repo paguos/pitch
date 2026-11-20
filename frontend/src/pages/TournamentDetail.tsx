@@ -869,6 +869,9 @@ function shuffled<T>(items: T[]): T[] {
   return a;
 }
 
+type DraftStep = 'competition' | 'teams' | 'draw';
+const DRAFT_STEPS: DraftStep[] = ['competition', 'teams', 'draw'];
+
 function DraftPanel({
   tournamentId, participantCount, availablePlayers, availableTeams, onChanged,
 }: {
@@ -883,27 +886,49 @@ function DraftPanel({
     () => COMPETITIONS.map(c => ({ ...c, count: availableTeams.filter(c.includes).length })),
     [availableTeams],
   );
+  const [step, setStep] = useState<DraftStep>('competition');
+  // Until someone picks, the first competition with enough free teams is selected.
   const [pickedKey, setPickedKey] = useState<string | null>(null);
-  // Until someone picks, the first competition with enough free teams is drawn.
-  const activeKey = pickedKey ?? options.find(o => o.count >= need)?.key ?? null;
-  const pool = useMemo(() => {
-    const c = options.find(o => o.key === activeKey);
-    return c ? availableTeams.filter(c.includes) : [];
-  }, [options, availableTeams, activeKey]);
-
+  const competitionKey = pickedKey ?? options.find(o => o.count >= need)?.key ?? null;
+  const competition = options.find(o => o.key === competitionKey) ?? null;
+  // The pool is whichever teams are ticked. A competition only decides which
+  // ones start ticked.
+  const [teamIds, setTeamIds] = useState<Set<string>>(() => new Set());
+  const [tickedFor, setTickedFor] = useState<string | null>(null); // competition the ticks belong to
   const [pairs, setPairs] = useState<DrawPair[]>([]);
   const [drawNo, setDrawNo] = useState(0); // bumps on every shuffle to replay the reveal
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  function draw() {
-    const teams = shuffled(pool);
-    setPairs(need > 0 && teams.length >= need ? availablePlayers.map((player, i) => ({ player, team: teams[i]! })) : []);
+  const competitionTeams = useMemo(
+    () => (competition ? availableTeams.filter(competition.includes).sort((a, b) => a.name.localeCompare(b.name)) : []),
+    [availableTeams, competition],
+  );
+  // Ticked teams that are still free (a partial save can take some away).
+  const pool = useMemo(() => availableTeams.filter(t => teamIds.has(t.id)), [availableTeams, teamIds]);
+  const poolReady = pool.length >= need;
+  const allTicked = competitionTeams.length > 0 && competitionTeams.every(t => teamIds.has(t.id));
+
+  function toTeams() {
+    // Coming back with the same competition keeps the edits made here.
+    if (competitionKey !== tickedFor) {
+      setTickedFor(competitionKey);
+      setTeamIds(new Set(competitionTeams.map(t => t.id)));
+    }
+    setStep('teams');
+  }
+
+  function draw(from = pool) {
+    const teams = shuffled(from);
+    setPairs(availablePlayers.map((player, i) => ({ player, team: teams[i]! })));
     setDrawNo(n => n + 1);
   }
-  // Draw on open, and again whenever the competition or the free players change
-  // (a partial save drops the saved players out of availablePlayers).
-  useEffect(draw, [activeKey, need]);
+
+  function toDraw() {
+    setErr(null);
+    draw();
+    setStep('draw');
+  }
 
   async function start() {
     setErr(null);
@@ -922,62 +947,158 @@ function DraftPanel({
       await api.start(tournamentId);
       onChanged();
     } catch (e: any) {
-      // Whoever was saved is already a participant; let the page catch up so
-      // a retry only draws for the rest.
+      // Whoever was saved is already a participant; keep only the rest on
+      // screen so a retry doesn't add anyone twice, and let the page catch up.
       if (remaining.length < pairs.length) onChanged();
+      setPairs(remaining);
       setErr(e.message);
       setBusy(false);
     }
   }
 
-  const drawn = need === 0 || pairs.length === need;
-  const canStart = !busy && drawn && participantCount + pairs.length >= 2;
-
   if (participantCount + need < 2) {
     return <p className="font-mono text-[13px] text-coral/90">Add at least 2 players on the Players page.</p>;
   }
 
+  // Everyone already has a team (a half-finished earlier attempt): just start.
+  if (need === 0) {
+    return (
+      <div className="flex flex-col gap-4">
+        {err && <div role="alert" className="font-mono text-xs text-coral">{err}</div>}
+        <div className="flex justify-end">
+          <Button
+            disabled={busy}
+            data-testid="start-tournament"
+            onClick={async () => {
+              setBusy(true); setErr(null);
+              try { await api.start(tournamentId); onChanged(); }
+              catch (e: any) { setErr(e.message); setBusy(false); }
+            }}
+          >
+            {busy ? 'Starting…' : 'Start tournament'}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const stepNo = DRAFT_STEPS.indexOf(step) + 1;
+
   return (
     <div className="flex flex-col gap-6">
-      {need > 0 && (
-        <CompetitionPicker
-          options={options}
-          selectedKey={activeKey}
-          need={need}
-          onPick={key => { if (key === activeKey) draw(); else setPickedKey(key); }}
-        />
-      )}
-
-      {need > 0 && !drawn && (
-        <p className="font-mono text-[13px] text-coral/90">Not enough free teams for {need} players.</p>
-      )}
-
-      {pairs.length > 0 && (
-        <div className="grid md:grid-cols-2 gap-3">
-          {pairs.map(({ player, team }, i) => (
-            <div
-              key={`${drawNo}-${player.id}`}
-              className="draw-reveal flex items-center gap-4 border border-hairline px-4 py-3"
-              style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}
-            >
-              <span className="font-display text-2xl text-bone leading-none w-[38%] truncate">{player.display_name}</span>
-              <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
-              <span className="text-[14px] text-bone flex-1 truncate">{team.name}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {err && <div role="alert" className="font-mono text-xs text-coral">{err}</div>}
-
-      <div className="flex items-center justify-end gap-3">
-        {pairs.length > 0 && (
-          <Button variant="ghost" disabled={busy} onClick={draw}>Shuffle</Button>
-        )}
-        <Button disabled={!canStart} data-testid="start-tournament" onClick={start}>
-          {busy ? 'Starting…' : 'Start tournament'}
-        </Button>
+      <div role="img" aria-label={`Step ${stepNo} of ${DRAFT_STEPS.length}`} className="flex gap-1.5">
+        {DRAFT_STEPS.map((k, i) => (
+          <span key={k} className={`h-[2px] w-6 transition-colors ${i < stepNo ? 'bg-pitch' : 'bg-hairline'}`} />
+        ))}
       </div>
+
+      {step === 'competition' && (
+        <>
+          <CompetitionPicker
+            options={options}
+            selectedKey={competitionKey}
+            need={need}
+            onPick={setPickedKey}
+          />
+          <div className="flex justify-end">
+            <Button disabled={!competition} onClick={toTeams}>Next</Button>
+          </div>
+        </>
+      )}
+
+      {step === 'teams' && (
+        <>
+          <div className="flex items-center gap-4">
+            {competition?.logo && (
+              <span aria-hidden className="flex h-9 w-9 shrink-0 items-center justify-center bg-chalk p-1">
+                <img src={competition.logo} alt="" draggable={false} className="h-full w-full object-contain" />
+              </span>
+            )}
+            <span className="font-display text-3xl leading-none text-bone">{competition?.name}</span>
+            <button
+              type="button"
+              onClick={() => setTeamIds(allTicked ? new Set() : new Set(competitionTeams.map(t => t.id)))}
+              className="ml-auto font-mono text-[12px] text-bone/60 underline underline-offset-4 decoration-bone/30 hover:text-pitch focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch"
+            >
+              {allTicked ? 'Clear' : 'Select all'}
+            </button>
+          </div>
+
+          <div role="group" aria-label="Teams" className="grid sm:grid-cols-2 lg:grid-cols-3 gap-2">
+            {competitionTeams.map(t => {
+              const on = teamIds.has(t.id);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={on}
+                  onClick={() => {
+                    const next = new Set(teamIds);
+                    if (on) next.delete(t.id); else next.add(t.id);
+                    setTeamIds(next);
+                  }}
+                  className={`flex items-center gap-3 border px-3 py-2.5 text-left transition-colors focus-visible:outline focus-visible:outline-1 focus-visible:outline-pitch ${
+                    on ? 'border-pitch/60 bg-pitch/[0.04]' : 'border-hairline opacity-60 hover:opacity-100 hover:border-pitch/50'
+                  }`}
+                >
+                  <TeamCrest name={t.name} logoUrl={t.logo_url} size="sm" />
+                  <span className="text-[14px] text-bone flex-1 truncate">{t.name}</span>
+                  <span
+                    aria-hidden
+                    className={`w-4 h-4 border flex items-center justify-center shrink-0 ${on ? 'border-pitch bg-pitch' : 'border-bone/40'}`}
+                  >
+                    {on && <span className="text-ink text-[10px] font-bold leading-none">✓</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" onClick={() => setStep('competition')}>Back</Button>
+            <div className="flex items-center gap-4">
+              <span
+                aria-live="polite"
+                className={`font-mono text-[12px] number-display ${poolReady ? 'text-bone/60' : 'text-coral'}`}
+              >
+                {pool.length} / {need}
+              </span>
+              <Button disabled={!poolReady} onClick={toDraw}>Continue</Button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {step === 'draw' && (
+        <>
+          <div className="grid md:grid-cols-2 gap-3">
+            {pairs.map(({ player, team }, i) => (
+              <div
+                key={`${drawNo}-${player.id}`}
+                className="draw-reveal flex items-center gap-4 border border-hairline px-4 py-3"
+                style={{ animationDelay: `${Math.min(i, 10) * 35}ms` }}
+              >
+                <span className="font-display text-2xl text-bone leading-none w-[38%] truncate">{player.display_name}</span>
+                <TeamCrest name={team.name} logoUrl={team.logo_url} size="sm" />
+                <span className="text-[14px] text-bone flex-1 truncate">{team.name}</span>
+              </div>
+            ))}
+          </div>
+
+          {err && <div role="alert" className="font-mono text-xs text-coral">{err}</div>}
+
+          <div className="flex items-center justify-between gap-3">
+            <Button variant="ghost" disabled={busy || pairs.length < need} onClick={() => setStep('teams')}>Back</Button>
+            <div className="flex items-center gap-3">
+              <Button variant="ghost" disabled={busy || !poolReady} onClick={() => draw()}>Shuffle</Button>
+              <Button disabled={busy || pairs.length === 0} data-testid="start-tournament" onClick={start}>
+                {busy ? 'Starting…' : 'Start tournament'}
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
