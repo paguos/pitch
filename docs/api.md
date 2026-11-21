@@ -224,6 +224,16 @@ Body: `{"name": "Friday Night", "format": "league"}` — `format ∈
 - Participant rows include `player_name`, `team_name`, and
   `team_logo_url` joined in for UI convenience.
 
+### `DELETE /tournaments/{id}` (admin)
+
+Deletes a `DRAFT` or `ACTIVE` tournament together with its participants and
+matches (cascade). `COMPLETED` tournaments are history and are never deleted.
+
+**204** on success.
+
+- **404** — not found
+- **409** — tournament is `COMPLETED` (`{"error":"completed tournaments can't be deleted"}`)
+
 ### `POST /tournaments/{id}/participants` (join)
 
 Body: `{"player_id": "<uuid>", "team_id": "<uuid>"}`. **201** with the

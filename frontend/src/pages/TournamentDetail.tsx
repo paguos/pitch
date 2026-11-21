@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
+import { DeleteTournamentDialog } from '../components/DeleteTournamentDialog';
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
@@ -22,6 +23,7 @@ export default function TournamentDetailPage() {
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
   const [copying, setCopying] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
@@ -95,6 +97,15 @@ export default function TournamentDetailPage() {
                 className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
               >
                 copy →
+              </button>
+            )}
+            {isAdmin && t.status !== 'COMPLETED' && (
+              <button
+                onClick={() => setDeleting(true)}
+                data-testid="tournament-delete-open"
+                className="font-mono text-[12px] uppercase tracking-widest2 text-coral/75 hover:text-coral transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coral"
+              >
+                delete
               </button>
             )}
           </div>
@@ -183,6 +194,18 @@ export default function TournamentDetailPage() {
           <BracketTab detail={detail} onReport={refresh} />
         )}
       </div>
+
+      <DeleteTournamentDialog
+        tournament={deleting ? t : null}
+        tally={{
+          players: detail.participants.length,
+          matches: detail.matches.length,
+          played: detail.matches.filter(m => m.status === 'REPORTED' || m.status === 'COMPLETED').length,
+        }}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => navigate('/')}
+        onRefused={refresh}
+      />
 
       {copying && (
         <CopyTournamentModal
