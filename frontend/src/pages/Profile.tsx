@@ -2,10 +2,22 @@ import { ReactNode, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, MyResult, Player } from '../lib/api';
 import { useAuth } from '../lib/auth';
-import { OUTCOME_LABEL, OUTCOME_STYLE, PlayedMatch, summarize } from '../lib/results';
+import { OUTCOME_LABEL, OUTCOME_STYLE, outcome, summarize } from '../lib/results';
 import { Badge, Card } from '../components/ui';
+import { TeamCrest } from '../components/TeamCrest';
 
-const PAGE = 10;
+const ORDINAL = ['th', 'st', 'nd', 'rd'];
+function ordinal(n: number) {
+  const v = n % 100;
+  return `${n}${ORDINAL[(v - 20) % 10] || ORDINAL[v] || ORDINAL[0]}`;
+}
+
+// Live tournaments first, then drafts, then finished ones; newest first within each.
+const STATUS_ORDER = { ACTIVE: 0, DRAFT: 1, COMPLETED: 2 } as const;
+function byRelevance(a: MyResult, b: MyResult) {
+  const d = STATUS_ORDER[a.tournament.status] - STATUS_ORDER[b.tournament.status];
+  return d || Date.parse(b.tournament.created_at) - Date.parse(a.tournament.created_at);
+}
 
 function fmtDay(iso: string | null) {
   if (!iso) return '';
@@ -25,14 +37,12 @@ export default function ProfilePage() {
   const [results, setResults] = useState<MyResult[] | null>(null);
   const [me, setMe] = useState<Player | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [shown, setShown] = useState(PAGE);
 
   useEffect(() => {
     let live = true;
     setResults(null);
     setMe(null);
     setErr(null);
-    setShown(PAGE);
     (id ? api.playerResults(id) : api.myResults())
       .then(r => live && setResults(r))
       .catch(e => live && setErr(e.message));
@@ -84,19 +94,19 @@ export default function ProfilePage() {
         </Card>
       )}
 
-      {sum && playerId && (
-        sum.played === 0 ? (
+      {results && playerId && (
+        results.length === 0 ? (
           <Card className="mt-10 p-8">
-            <p className="font-display text-3xl text-bone/70">No matches played yet.</p>
+            <p className="font-display text-3xl text-bone/70">No tournaments yet.</p>
             <p className="text-bone/70 mt-2 text-[14px] max-w-md leading-relaxed">
-              {own ? 'Your record' : 'Their record'} and recent form show up here after {own ? 'your' : 'their'} first result.{' '}
+              {own ? 'Once an admin adds you to a tournament, your' : 'Once they join a tournament, their'} matches and standing show up here.{' '}
               <Link to="/" className="text-pitch hover:underline">Browse tournaments</Link>
             </p>
           </Card>
         ) : (
           <>
-            <RecordBand sum={sum} />
-            <MatchLog log={sum.log} shown={shown} onMore={() => setShown(n => n + PAGE)} />
+            {sum && sum.played > 0 && <RecordBand sum={sum} />}
+            <Tournaments results={[...results].sort(byRelevance)} />
           </>
         )
       )}
@@ -181,60 +191,132 @@ function Figure({ label, children }: { label: string; children: ReactNode }) {
   );
 }
 
-function MatchLog({ log, shown, onMore }: { log: PlayedMatch[]; shown: number; onMore: () => void }) {
+function Tournaments({ results }: { results: MyResult[] }) {
+  // Live tournaments start open: that's where the next match is.
+  const [open, setOpen] = useState(() => new Set(results.filter(r => r.tournament.status === 'ACTIVE').map(r => r.tournament.id)));
+  const toggle = (id: string) =>
+    setOpen(prev => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
+
   return (
-    <section className="mt-10" aria-label="Matches">
-      <h2 className="font-display text-3xl leading-none text-bone mb-4">Matches</h2>
-      <Card>
-        <ul data-testid="profile-matches">
-          {log.slice(0, shown).map(m => (
-            <li key={m.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 border-b border-hairline last:border-0">
-              <span className="w-12 shrink-0 font-mono text-[11px] uppercase tracking-widest2 text-bone/60">
-                {fmtDay(m.played_at) || `R${m.round}`}
-              </span>
-              <span className="flex-1 min-w-0">
-                <span
-                  className="flex items-center gap-2 min-w-0 text-[14px] text-bone"
-                  title={`${m.is_home ? 'vs' : 'at'} ${m.opponent}, played by ${m.opponentPlayer}`}
-                >
-                  <span className="shrink-0 font-mono text-[11px] uppercase tracking-widest2 text-bone/60">{m.is_home ? 'vs' : 'at'}</span>
-                  <span className="truncate">{m.opponent}</span>
-                  {m.opponentPlayer && (
-                    <span className="shrink-0 max-w-[7rem] truncate border border-hairline px-1.5 py-px font-mono text-[11px] text-bone/80">
-                      <span className="sr-only">played by </span>
-                      {m.opponentPlayer}
-                    </span>
-                  )}
-                </span>
-                <Link
-                  to={`/tournaments/${m.tournamentId}`}
-                  className="block truncate font-mono text-[12px] text-bone/60 hover:text-pitch"
-                >
-                  {m.tournamentName}
-                </Link>
-              </span>
-              <span className="w-14 shrink-0 text-center font-display text-2xl number-display text-bone">
-                {m.mine}–{m.theirs}
-              </span>
-              <span
-                className={`inline-flex w-6 h-6 shrink-0 items-center justify-center border font-mono text-[12px] ${OUTCOME_STYLE[m.outcome]}`}
-                aria-label={OUTCOME_LABEL[m.outcome]}
-              >
-                {m.outcome}
-              </span>
-            </li>
-          ))}
-        </ul>
-        {log.length > shown && (
-          <button
-            type="button"
-            onClick={onMore}
-            className="w-full border-t border-hairline py-3 font-mono text-[12px] uppercase tracking-widest2 text-bone/75 hover:text-pitch outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pitch"
-          >
-            Show more ({log.length - shown} left)
-          </button>
-        )}
-      </Card>
+    <section className="mt-10" aria-label="Tournaments">
+      <h2 className="font-display text-3xl leading-none text-bone mb-4">Tournaments</h2>
+      <div className="space-y-3" data-testid="profile-tournaments">
+        {results.map(r => (
+          <TournamentRow key={r.tournament.id} r={r} open={open.has(r.tournament.id)} onToggle={() => toggle(r.tournament.id)} />
+        ))}
+      </div>
     </section>
+  );
+}
+
+function TournamentRow({ r, open, onToggle }: { r: MyResult; open: boolean; onToggle: () => void }) {
+  const t = r.tournament;
+  const s = r.standing;
+  const panelId = `tournament-${t.id}`;
+  const diff = s ? s.GoalDiff : 0;
+
+  return (
+    <Card data-testid={`profile-tournament-${t.name}`}>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={open}
+        aria-controls={panelId}
+        className="flex w-full items-center gap-4 p-4 sm:p-5 text-left outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pitch"
+      >
+        <TeamCrest name={r.participant.team_name} logoUrl={r.participant.team_logo_url} size="md" />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-display text-2xl sm:text-3xl leading-none text-bone">{t.name}</span>
+          <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <span className="font-mono text-[12px] text-bone/75">{r.participant.team_name}</span>
+            <Badge tone={t.status === 'ACTIVE' ? 'live' : t.status === 'COMPLETED' ? 'pitch' : 'neutral'}>{t.status}</Badge>
+          </span>
+        </span>
+        {s && (
+          <span className="flex shrink-0 items-end gap-5 sm:gap-8">
+            <span className="text-right">
+              <span className="block font-display text-3xl sm:text-4xl leading-none text-pitch">
+                {r.position ? ordinal(r.position) : '—'}
+              </span>
+              <span className="sr-only">place</span>
+            </span>
+            <span className="hidden sm:block text-right">
+              <span className="block font-mono text-[14px] text-bone">{s.Won}-{s.Drawn}-{s.Lost}</span>
+              <span className={`block font-mono text-[12px] ${diff > 0 ? 'text-pitch' : diff < 0 ? 'text-coral' : 'text-bone/60'}`}>
+                {diff > 0 ? `+${diff}` : diff} GD
+              </span>
+            </span>
+            <span className="hidden sm:block text-right">
+              <span className="block font-mono text-[14px] text-bone">{s.Points}</span>
+              <span className="block font-mono text-[12px] text-bone/60">pts</span>
+            </span>
+          </span>
+        )}
+        <span aria-hidden="true" className={`shrink-0 font-mono text-bone/60 transition-transform ${open ? 'rotate-90' : ''}`}>▸</span>
+      </button>
+
+      {open && (
+        <div id={panelId} className="border-t border-hairline">
+          {r.matches.length === 0 ? (
+            <p className="p-5 text-[14px] text-bone/60">
+              {t.status === 'DRAFT' ? "The tournament hasn't started yet." : 'No matches yet.'}
+            </p>
+          ) : (
+            <ul>
+              {r.matches.map(m => {
+                const o = outcome(m);
+                const opponent = m.is_home ? m.away_name : m.home_name;
+                const opponentPlayer = m.is_home ? m.away_player : m.home_player;
+                const mine = m.is_home ? m.home_goals : m.away_goals;
+                const theirs = m.is_home ? m.away_goals : m.home_goals;
+                return (
+                  <li key={m.id} className="flex items-center gap-3 sm:gap-4 px-4 sm:px-5 py-3 border-b border-hairline last:border-0">
+                    <span className="w-12 shrink-0 font-mono text-[11px] uppercase tracking-widest2 text-bone/60">
+                      {fmtDay(m.played_at) || `R${m.round}`}
+                    </span>
+                    <span
+                      className="flex min-w-0 flex-1 items-center gap-2 text-[14px] text-bone"
+                      title={`${m.is_home ? 'vs' : 'at'} ${opponent}${opponentPlayer ? `, played by ${opponentPlayer}` : ''}`}
+                    >
+                      <span className="shrink-0 font-mono text-[11px] uppercase tracking-widest2 text-bone/60">{m.is_home ? 'vs' : 'at'}</span>
+                      <span className="truncate">{opponent}</span>
+                      {opponentPlayer && (
+                        <span className="shrink-0 max-w-[7rem] truncate border border-hairline px-1.5 py-px font-mono text-[11px] text-bone/80">
+                          <span className="sr-only">played by </span>
+                          {opponentPlayer}
+                        </span>
+                      )}
+                    </span>
+                    <span className="w-14 shrink-0 text-center font-display text-2xl number-display text-bone">
+                      {o ? `${mine}–${theirs}` : <span className="font-mono text-[12px] text-bone/60">—</span>}
+                    </span>
+                    <span className="w-6 shrink-0">
+                      {o && (
+                        <span
+                          className={`inline-flex h-6 w-6 items-center justify-center border font-mono text-[12px] ${OUTCOME_STYLE[o]}`}
+                          aria-label={OUTCOME_LABEL[o]}
+                        >
+                          {o}
+                        </span>
+                      )}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+          <Link
+            to={`/tournaments/${t.id}`}
+            className="block border-t border-hairline px-4 sm:px-5 py-3 font-mono text-[12px] text-bone/75 hover:text-pitch outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pitch"
+          >
+            Open {t.name}
+          </Link>
+        </div>
+      )}
+    </Card>
   );
 }
