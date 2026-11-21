@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.6.0](https://github.com/paguos/pitch/compare/v0.5.1...v0.6.0) (2026-11-21)
+
+
+### Features
+
+* **frontend:** move my results into the profile ([#61](https://github.com/paguos/pitch/issues/61)) ([51fa82a](https://github.com/paguos/pitch/commit/51fa82aab0c961947015776f74f0915f761438a4))
+* let admins delete tournaments that aren't completed ([#63](https://github.com/paguos/pitch/issues/63)) ([9f46586](https://github.com/paguos/pitch/commit/9f4658659c467b598556bb476a3a54b0eedc56e0))
+* let players edit results while their tournament is ongoing ([#65](https://github.com/paguos/pitch/issues/65)) ([55597f8](https://github.com/paguos/pitch/commit/55597f8c28d847566d5f578ab48d976e250443ef))
+* seed a fixed admin password in local dev ([#64](https://github.com/paguos/pitch/issues/64)) ([c5e0456](https://github.com/paguos/pitch/commit/c5e0456505fb5322a21ddbf698aeb042caeaa3ed))
+
 ## [0.5.1](https://github.com/paguos/pitch/compare/v0.5.0...v0.5.1) (2026-11-21)
 
 
