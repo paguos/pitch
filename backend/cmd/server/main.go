@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -51,6 +52,9 @@ func main() {
 	}
 
 	st := store.New(pool)
+	if err := seedDevAdmin(ctx, cfg, st); err != nil {
+		log.Fatalf("dev admin: %v", err)
+	}
 	h := api.New(cfg, st, newProviderFunc(cfg))
 
 	srv := &http.Server{
@@ -72,6 +76,44 @@ func main() {
 	ctx2, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	_ = srv.Shutdown(ctx2)
+}
+
+// devAdminPassword returns the password to seed the default admin with, or ""
+// when none is configured. It is an error to set DEV_ADMIN_PASSWORD outside
+// APP_ENV=dev, or to set one that sign-in would reject as too short.
+func devAdminPassword(cfg config.Config) (string, error) {
+	if cfg.DevAdminPassword == "" {
+		return "", nil
+	}
+	if !cfg.IsDev() {
+		return "", errors.New("DEV_ADMIN_PASSWORD is only allowed with APP_ENV=dev")
+	}
+	if utf8.RuneCountInString(cfg.DevAdminPassword) < auth.MinPasswordLen {
+		return "", fmt.Errorf("DEV_ADMIN_PASSWORD must be at least %d characters", auth.MinPasswordLen)
+	}
+	return cfg.DevAdminPassword, nil
+}
+
+// seedDevAdmin creates the default admin from DEV_ADMIN_PASSWORD on a fresh
+// local database, so every dev environment signs in with the same password.
+// It never touches an existing admin: use reset-admin-password for that.
+func seedDevAdmin(ctx context.Context, cfg config.Config, st *store.Store) error {
+	pw, err := devAdminPassword(cfg)
+	if err != nil || pw == "" {
+		return err
+	}
+	hash, err := auth.HashPassword(pw)
+	if err != nil {
+		return err
+	}
+	switch _, err := st.CreateBootstrapAdmin(ctx, hash); {
+	case errors.Is(err, store.ErrSetupDone):
+		return nil
+	case err != nil:
+		return err
+	}
+	log.Printf("WARNING: created the default admin from DEV_ADMIN_PASSWORD (dev only)")
+	return nil
 }
 
 // resetAdminPassword reads the new password from NEW_ADMIN_PASSWORD (or the

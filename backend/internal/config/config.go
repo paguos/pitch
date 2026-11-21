@@ -20,6 +20,11 @@ type Config struct {
 	GoogleClientSecret string
 	// GoogleProvider is "google" (default) or "fake" (dev only).
 	GoogleProvider string
+	// DevAdminPassword, when set (dev only), creates the default admin with
+	// this password at boot if no admin exists yet, so a fresh local database
+	// skips the first-run setup screen. The server refuses to start with it
+	// set outside APP_ENV=dev.
+	DevAdminPassword string
 }
 
 func FromEnv() Config {
@@ -33,6 +38,7 @@ func FromEnv() Config {
 		GoogleClientID:     os.Getenv("GOOGLE_CLIENT_ID"),
 		GoogleClientSecret: os.Getenv("GOOGLE_CLIENT_SECRET"),
 		GoogleProvider:     getenv("GOOGLE_PROVIDER", "google"),
+		DevAdminPassword:   os.Getenv("DEV_ADMIN_PASSWORD"),
 	}
 }
 
