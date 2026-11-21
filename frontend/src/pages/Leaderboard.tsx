@@ -195,7 +195,7 @@ function Cell({
         ) : (
           <>
             <div className="mt-5 flex items-center gap-3">
-              <Who s={lead.s} cat={cat} lead />
+              {cat.subject === 'team' && <Who s={lead.s} cat={cat} lead />}
               <span className={`flex-1 min-w-0 truncate font-display leading-none text-bone ${wide ? 'text-5xl' : 'text-4xl'}`}>
                 {lead.s.name}
               </span>
@@ -283,13 +283,13 @@ function StatTable({ cat, board }: { cat: Category; board: Board }) {
       <p className="mt-3 text-[14px] text-bone/70 max-w-lg">{cat.about}{minNote}</p>
 
       <div className="mt-8 overflow-x-auto">
-        <table className="w-full text-left">
+        <table className="w-full table-fixed text-left">
           <caption className="sr-only">{cat.title}, best first</caption>
           <thead>
             <tr className="border-b border-hairline label-eyebrow">
-              <th scope="col" className="py-3 pr-3 w-12 font-normal">#</th>
+              <th scope="col" className="py-3 pr-3 w-10 sm:w-12 font-normal">#</th>
               <th scope="col" className="py-3 pr-4 font-normal">{cat.subject === 'team' ? 'Team' : 'Player'}</th>
-              <th scope="col" className="py-3 pr-4 w-[40%] md:w-[28%] font-normal">{cat.unit}</th>
+              <th scope="col" className="py-3 pr-4 w-24 md:w-[28%] font-normal">{cat.unit}</th>
             </tr>
           </thead>
           <tbody>
@@ -351,7 +351,7 @@ function TableRow({
               )}
               {mine && <Badge tone="pitch">you</Badge>}
             </div>
-            {note && <div className="mt-1 font-mono text-[12px] text-bone/60 truncate">{note}</div>}
+            {note && <div className="mt-1.5 font-mono text-[12px] leading-snug text-bone/60 whitespace-pre-line">{note}</div>}
           </div>
         </div>
       </td>
