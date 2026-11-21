@@ -350,7 +350,7 @@ function TableRow({
       </td>
       <td className="py-4 pr-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Who s={s} cat={cat} lead={lead} />
+          {cat.subject === 'team' && <Who s={s} cat={cat} lead={lead} />}
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               {cat.subject === 'player' ? (
