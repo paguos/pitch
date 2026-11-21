@@ -313,7 +313,7 @@ export const CATEGORIES: Category[] = [
       s.bestWin
         ? `${s.name} beat ${s.bestWin.opponentPlayer} ${s.bestWin.mine}–${s.bestWin.theirs} with ${s.bestWin.teamName} against ${s.bestWin.opponent}.`
         : '',
-    note: s => (s.bestWin ? `with ${s.bestWin.teamName} against ${s.bestWin.opponent} (${s.bestWin.opponentPlayer})` : null),
+    note: s => (s.bestWin ? `with ${s.bestWin.teamName}\nagainst ${s.bestWin.opponent} (${s.bestWin.opponentPlayer})` : null),
   },
   {
     key: 'win-streak',
