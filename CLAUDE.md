@@ -30,8 +30,11 @@ make clean   # stop + remove volumes (wipes DB)
   already has the catalog.
 - **Four starter players** (Alice, Bob, Carol, Dave @example.com) are seeded by
   migration `0004`. Add real ones in the UI or via `POST /players` (admin).
-- **First run:** the app opens on a setup screen to choose the `admin`
-  password. Locally, sign in as a player through the fake Google page
+- **First run:** on a deployed instance the app opens on a setup screen to
+  choose the `admin` password. Locally `DEV_ADMIN_PASSWORD` in
+  `docker-compose.yml` seeds the admin on a fresh database, so dev is always
+  `admin` / `admin-dev-only` (an existing admin is never changed; use
+  `reset-admin-password` for that). Locally, sign in as a player through the fake Google page
   (`GOOGLE_PROVIDER=fake`, dev only, set in `docker-compose.yml`): type an
   email that belongs to a player. Lost the admin password:
   `docker compose exec -e NEW_ADMIN_PASSWORD=… backend /app/server reset-admin-password`.

@@ -28,6 +28,11 @@ services:
       # google and add GOOGLE_CLIENT_ID/SECRET to test the real flow.
       PUBLIC_BASE_URL: http://localhost:5173
       GOOGLE_PROVIDER: fake
+      # Dev only: a fresh database gets the `admin` account with this password
+      # instead of showing the first-run setup screen. The server refuses to
+      # start with it outside APP_ENV=dev. Change an existing admin's password
+      # with `reset-admin-password`.
+      DEV_ADMIN_PASSWORD: admin-dev-only
     depends_on:
       db:
         condition: service_healthy
