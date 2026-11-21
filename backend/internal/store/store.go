@@ -776,6 +776,15 @@ func (s *Store) EndTournament(ctx context.Context, tournamentID uuid.UUID) (Tour
 	return t, nil
 }
 
+// IsParticipant reports whether the player is entered in the tournament.
+func (s *Store) IsParticipant(ctx context.Context, tournamentID, playerID uuid.UUID) (bool, error) {
+	var ok bool
+	err := s.DB.QueryRow(ctx, `
+		SELECT EXISTS (SELECT 1 FROM participants WHERE tournament_id=$1 AND player_id=$2)
+	`, tournamentID, playerID).Scan(&ok)
+	return ok, err
+}
+
 func (s *Store) GetMatch(ctx context.Context, matchID uuid.UUID) (Match, error) {
 	var m Match
 	err := s.DB.QueryRow(ctx, `
