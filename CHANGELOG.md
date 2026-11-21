@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.5.0](https://github.com/paguos/pitch/compare/v0.4.0...v0.5.0) (2026-11-21)
+
+
+### Features
+
+* **frontend:** add leaderboard page with stat leaders and full tables ([#56](https://github.com/paguos/pitch/issues/56)) ([9d0a0e4](https://github.com/paguos/pitch/commit/9d0a0e4534758c6a7c82edec32db9521c92df342))
+
 ## [0.4.0](https://github.com/paguos/pitch/compare/v0.3.0...v0.4.0) (2026-11-20)
 
 
