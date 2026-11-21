@@ -140,6 +140,7 @@ export const api = {
     { method: 'POST', body: JSON.stringify({ name }) },
   ),
   start: (id: string) => req<{ ok: boolean }>(`/tournaments/${id}/start`, { method: 'POST' }),
+  deleteTournament: (id: string) => req<void>(`/tournaments/${id}`, { method: 'DELETE' }),
   endTournament: (id: string) => req<Tournament>(`/tournaments/${id}/end`, { method: 'POST' }),
   submitScore: (matchId: string, home_goals: number, away_goals: number, version: number) =>
     req<Match>(`/matches/${matchId}/score`, {

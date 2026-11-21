@@ -21,6 +21,7 @@ var ErrMatchNotPlayable = errors.New("match is not yet playable")
 var ErrPlayerInUse = errors.New("player is referenced by tournaments and cannot be deleted")
 var ErrTournamentNotStarted = errors.New("tournament has not started")
 var ErrNameTaken = errors.New("a tournament with that name already exists")
+var ErrTournamentCompleted = errors.New("completed tournaments can't be deleted")
 
 // pgUniqueViolation is the Postgres error code for unique_violation.
 const pgUniqueViolation = "23505"
@@ -774,6 +775,31 @@ func (s *Store) EndTournament(ctx context.Context, tournamentID uuid.UUID) (Tour
 		return t, ErrTournamentNotStarted
 	}
 	return t, nil
+}
+
+// DeleteTournament removes a DRAFT or ACTIVE tournament together with its
+// participants and matches (ON DELETE CASCADE). COMPLETED tournaments are
+// history and are never deleted: ErrTournamentCompleted. The status check is
+// part of the DELETE itself, so a tournament that completes between a read
+// and this call can't be removed.
+func (s *Store) DeleteTournament(ctx context.Context, id uuid.UUID) error {
+	tag, err := s.DB.Exec(ctx,
+		`DELETE FROM tournaments WHERE id=$1 AND status <> 'COMPLETED'`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	var exists bool
+	if err := s.DB.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM tournaments WHERE id=$1)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return ErrTournamentCompleted
+	}
+	return ErrNotFound
 }
 
 func (s *Store) GetMatch(ctx context.Context, matchID uuid.UUID) (Match, error) {
