@@ -1,4 +1,4 @@
-import { CSSProperties, useEffect, useRef, useState } from 'react';
+import { CSSProperties, useEffect, useState } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { Board, CATEGORIES, Category, categoryByKey, loadBoard, ordinal, Ranking, rankCategory, Row, Stats } from '../lib/leaderboard';
 import { useAuth } from '../lib/auth';
@@ -291,9 +291,7 @@ function StatTable({ cat, board }: { cat: Category; board: Board }) {
     <div>
       <p className="mt-3 text-[14px] text-bone/70 max-w-lg">{cat.about}{minNote}</p>
 
-      <Tabs active={cat.key} />
-
-      <div className="mt-2 overflow-x-auto">
+      <div className="mt-8 overflow-x-auto">
         <table className="w-full text-left">
           <caption className="sr-only">{cat.title}, best first</caption>
           <thead>
@@ -384,37 +382,5 @@ function TableRow({
         </td>
       ))}
     </tr>
-  );
-}
-
-/** Jump between stats without going back to the overview. */
-function Tabs({ active }: { active: string }) {
-  const current = useRef<HTMLAnchorElement | null>(null);
-  useEffect(() => {
-    current.current?.scrollIntoView({ block: 'nearest', inline: 'center' });
-  }, [active]);
-
-  return (
-    <nav aria-label="Stats" className="mt-8 -mx-6 px-6 overflow-x-auto no-scrollbar border-b border-hairline">
-      <ul className="flex gap-6 whitespace-nowrap">
-        {CATEGORIES.map(c => {
-          const on = c.key === active;
-          return (
-            <li key={c.key}>
-              <Link
-                ref={on ? current : undefined}
-                to={`/leaderboard/${c.key}`}
-                aria-current={on ? 'page' : undefined}
-                className={`block py-3 -mb-px border-b-2 font-mono text-[12px] uppercase tracking-widest2 outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-pitch ${
-                  on ? 'border-pitch text-pitch' : 'border-transparent text-bone/65 hover:text-bone'
-                }`}
-              >
-                {c.title}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
   );
 }
