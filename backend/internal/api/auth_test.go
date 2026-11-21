@@ -319,6 +319,73 @@ func TestPlayerResults(t *testing.T) {
 
 // Every route must be public (healthz, auth), signed-in only, or admin only.
 // This fails when an endpoint is added without deciding which.
+func TestPlayersEditResultsWhileOngoing(t *testing.T) {
+	e := newEnv(t)
+	admin := e.client()
+	admin.setupAdmin()
+	ann := admin.createPlayer("Ann", "ann@test.dev")
+	ben := admin.createPlayer("Ben", "ben@test.dev")
+	admin.createPlayer("Cat", "cat@test.dev") // not in the tournament
+	teams := decode[[]store.Team](t, admin.expect(200, "GET", "/teams?league=La%20Liga", nil))
+	tour := decode[store.Tournament](t, admin.expect(201, "POST", "/tournaments", map[string]string{"name": "Friday", "format": "league"}))
+	base := "/tournaments/" + tour.ID.String()
+	admin.expect(201, "POST", base+"/participants", map[string]string{"player_id": ann.ID.String(), "team_id": teams[0].ID.String()})
+	admin.expect(201, "POST", base+"/participants", map[string]string{"player_id": ben.ID.String(), "team_id": teams[1].ID.String()})
+
+	annC, catC := e.client(), e.client()
+	annC.googleLogin("ann@test.dev")
+	catC.googleLogin("cat@test.dev")
+
+	admin.expect(200, "POST", base+"/start", nil)
+	detail := decode[struct {
+		Matches []store.Match `json:"matches"`
+	}](t, admin.expect(200, "GET", base, nil))
+	m := detail.Matches[0]
+	path := "/matches/" + m.ID.String() + "/score"
+
+	// Ongoing: a player in the tournament can report and then correct a result.
+	annC.expect(200, "PUT", path, map[string]int{"home_goals": 2, "away_goals": 1, "version": m.Version})
+	fixed := decode[store.Match](t, annC.expect(200, "PUT", path, map[string]int{"home_goals": 3, "away_goals": 1, "version": m.Version + 1}))
+	if fixed.HomeGoals == nil || *fixed.HomeGoals != 3 {
+		t.Fatalf("edit not saved: %+v", fixed)
+	}
+	// A stale version still conflicts for players.
+	annC.expect(409, "PUT", path, map[string]int{"home_goals": 0, "away_goals": 0, "version": m.Version})
+	// A signed-in player who is not in this tournament cannot.
+	catC.expect(403, "PUT", path, map[string]int{"home_goals": 9, "away_goals": 9, "version": fixed.Version})
+	// Bad input is still refused.
+	annC.expect(400, "PUT", path, map[string]int{"home_goals": -1, "away_goals": 0, "version": fixed.Version})
+
+	// Once it is over, only the admin can change a result.
+	admin.expect(200, "POST", base+"/end", nil)
+	annC.expect(403, "PUT", path, map[string]int{"home_goals": 0, "away_goals": 0, "version": fixed.Version})
+	admin.expect(200, "PUT", path, map[string]int{"home_goals": 0, "away_goals": 0, "version": fixed.Version})
+}
+
+func TestPlayerCannotEditCompletedResults(t *testing.T) {
+	e := newEnv(t)
+	admin := e.client()
+	admin.setupAdmin()
+	ann := admin.createPlayer("Ann", "ann@test.dev")
+	ben := admin.createPlayer("Ben", "ben@test.dev")
+	teams := decode[[]store.Team](t, admin.expect(200, "GET", "/teams?league=La%20Liga", nil))
+	tour := decode[store.Tournament](t, admin.expect(201, "POST", "/tournaments", map[string]string{"name": "Friday", "format": "league"}))
+	base := "/tournaments/" + tour.ID.String()
+	admin.expect(201, "POST", base+"/participants", map[string]string{"player_id": ann.ID.String(), "team_id": teams[0].ID.String()})
+	admin.expect(201, "POST", base+"/participants", map[string]string{"player_id": ben.ID.String(), "team_id": teams[1].ID.String()})
+	admin.expect(200, "POST", base+"/start", nil)
+	detail := decode[struct {
+		Matches []store.Match `json:"matches"`
+	}](t, admin.expect(200, "GET", base, nil))
+	m := detail.Matches[0]
+
+	// A completed tournament is closed to its players too.
+	admin.expect(200, "POST", base+"/end", nil)
+	annC := e.client()
+	annC.googleLogin("ann@test.dev")
+	annC.expect(403, "PUT", "/matches/"+m.ID.String()+"/score", map[string]int{"home_goals": 1, "away_goals": 0, "version": m.Version})
+}
+
 func TestRoutePolicy(t *testing.T) {
 	e := newEnv(t)
 	admin := e.client()

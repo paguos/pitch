@@ -13,7 +13,8 @@ Docker Compose and is deployed to a home k8s cluster (see
 **Auth:** everything is behind a sign-in. A default `admin` (password, set on
 a first-run setup screen) can change anything and can grant `admin` to other
 players. Players sign in with Google, only if an admin set their email on
-their player; they are read-only `viewer`s whose profile shows their record, tournaments and matches.
+their player; they are `viewer`s whose profile shows their record, tournaments and matches, and who can
+enter and edit results in tournaments they play in while those are `ACTIVE` (`SubmitScore` checks this itself).
 Participants are still passed explicitly in request bodies (no "acting
 player").
 

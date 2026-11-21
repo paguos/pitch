@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
@@ -10,11 +10,15 @@ import { AddTeamsPanel } from '../components/AddTeamsPanel';
 import { PlayerPicker } from '../components/PlayerPicker';
 import { COMPETITIONS, teamOrigin } from '../lib/competitions';
 
+// Whether the signed-in user may enter results here: admins always, players
+// only while a tournament they are in is ongoing (the server enforces the same).
+const CanEditResults = createContext(false);
+
 type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { isAdmin } = useAuth();
+  const { isAdmin, user } = useAuth();
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
@@ -69,7 +73,11 @@ export default function TournamentDetailPage() {
         { key: 'standings',    label: 'Standings' },
       ];
 
+  const canEditResults = isAdmin
+    || (t.status === 'ACTIVE' && !!user?.player_id && takenPlayerIds.has(user.player_id));
+
   return (
+    <CanEditResults.Provider value={canEditResults}>
     <div>
       {/* Header */}
       <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:gap-8">
@@ -127,7 +135,7 @@ export default function TournamentDetailPage() {
 
       {/* Score entry — pick the two sides instead of finding the fixture row.
           Sits above the tabs so a result can be entered from any of them. */}
-      {isAdmin && t.status === 'ACTIVE' && (
+      {canEditResults && t.status === 'ACTIVE' && (
         <ScoreEntry participants={detail.participants} matches={detail.matches} onSaved={refresh} />
       )}
 
@@ -174,6 +182,7 @@ export default function TournamentDetailPage() {
         )}
       </div>
     </div>
+    </CanEditResults.Provider>
   );
 }
 
@@ -274,7 +283,7 @@ function FixturesTab({ detail, onReport }: { detail: TournamentDetail; onReport:
 }
 
 function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer, onReport }: { m: Match; home: string; homeLogo: string | null; homePlayer: string | null; away: string; awayLogo: string | null; awayPlayer: string | null; onReport: () => void }) {
-  const { isAdmin } = useAuth();
+  const canEdit = useContext(CanEditResults);
   const [editing, setEditing] = useState(false);
   const [h, setH] = useState(m.home_goals ?? 0);
   const [a, setA] = useState(m.away_goals ?? 0);
@@ -304,7 +313,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
             </>
-          ) : isAdmin ? (
+          ) : canEdit ? (
             <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch" onClick={() => setEditing(true)}>
               {reported ? 'edit' : 'result'} →
             </button>
@@ -361,7 +370,7 @@ function FixtureRow({ m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer,
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-pitch hover:text-pitch/80" onClick={submit}>save</button>
               <button className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-bone" onClick={() => setEditing(false)}>cancel</button>
             </>
-          ) : isAdmin ? (
+          ) : canEdit ? (
             <button
               className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
               onClick={() => setEditing(true)}
@@ -566,7 +575,7 @@ function BracketTab({ detail, onReport }: { detail: TournamentDetail; onReport: 
 function BracketCard({
   m, home, homeLogo, homePlayer, away, awayLogo, awayPlayer, onReport,
 }: { m: Match; home: string; homeLogo: string | null; homePlayer: string | null; away: string; awayLogo: string | null; awayPlayer: string | null; onReport: () => void }) {
-  const { isAdmin } = useAuth();
+  const canEdit = useContext(CanEditResults);
   const [editing, setEditing] = useState(false);
   const [h, setH] = useState(m.home_goals ?? 0);
   const [a, setA] = useState(m.away_goals ?? 0);
@@ -594,7 +603,7 @@ function BracketCard({
     <div className={`border ${completed ? 'border-pitch/30' : 'border-hairline'} bg-ash/40`}>
       <div className="px-4 py-2 border-b border-hairline flex items-center justify-between">
         <Badge tone={statusTone as any}>{m.status}</Badge>
-        {isAdmin && playable && !editing && (
+        {canEdit && playable && !editing && (
           <button
             className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch"
             onClick={() => setEditing(true)}

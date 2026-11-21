@@ -279,6 +279,11 @@ with the current row.
 
 ### `PUT /matches/{id}/score`
 
+Access: an admin, or a signed-in player who is entered in the match's
+tournament while that tournament is `ACTIVE`. Players can report a result and
+correct it any number of times until the tournament ends; after that only an
+admin can change it.
+
 Body:
 ```json
 { "home_goals": 2, "away_goals": 1, "version": 1 }
@@ -302,7 +307,8 @@ Errors:
 | Status | Cause                                                                     |
 |--------|---------------------------------------------------------------------------|
 | 400    | bad UUID, invalid JSON, negative goals                                    |
-| 404    | match not found                                                           |
+| 403    | not an admin and not a player in this tournament, or the tournament is not `ACTIVE` |
+| 404    | match not found (admins; everyone else gets 403)                          |
 | 409    | `version conflict` (stale version)                                        |
 | 409    | `downstream match already completed; reset it first` (knockout only)      |
 | 409    | `match is not yet playable (waiting on feeder match)` (knockout only)     |

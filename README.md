@@ -5,7 +5,8 @@
 A self-hosted tournament organizer for FIFA-style 1v1 contests. This iteration
 supports both **league** (round robin) and **knockout** (single elimination)
 formats. Everything sits behind a sign-in: an **admin** runs the show, and
-players sign in with Google to follow their results (read-only).
+players sign in with Google to follow their results and enter scores while a
+tournament they play in is ongoing.
 
 ## Quickstart
 
@@ -45,8 +46,10 @@ already exist, the seed is skipped.
   admin can't be removed, and you can't remove your own rights.
 - **Players** sign in with Google. To let someone in, an admin sets their
   **email** on their player (Players tab → edit). Only that Google account can
-  sign in as them; they land as a read-only **viewer**, see every tournament,
-  and get a **profile** with their record, plus each tournament's matches and standing. Changing the
+  sign in as them; they land as a **viewer**, see every tournament,
+  and get a **profile** with their record, plus each tournament's matches and standing.
+  A player can report and correct results in any tournament they are entered in
+  while it is ongoing; everything else is read-only for them. Changing the
   player's email signs them out and unlinks the Google account.
 - **Lost the admin password?** Run
   `NEW_ADMIN_PASSWORD='…' /app/server reset-admin-password` inside the backend
@@ -138,8 +141,6 @@ for reproducible end-to-end smoke tests.
 
 ## Future work
 
-- **More roles.** There are two: `admin` and read-only `viewer`. A role that
-  can report scores for their own matches would be a natural next step.
 - **Real-time updates** — currently the UI re-fetches on user action. WebSocket
   or SSE push is left for later.
 - **Match attribution** — the backend accepts `updated_by_player_id` on score

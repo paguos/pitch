@@ -68,9 +68,11 @@ func New(cfg config.Config, st *store.Store, provider func(ctx context.Context) 
 		r.Get("/auth/google/fake", a.fakeGooglePage)
 	}
 
-	// Signed-in users (viewers and admins): read-only.
+	// Signed-in users (viewers and admins): reads, plus score entry for the
+	// players of an ongoing tournament (SubmitScore does that check itself).
 	r.Group(func(r chi.Router) {
 		r.Use(a.requireUser)
+		r.Put("/matches/{id}/score", a.SubmitScore)
 		r.Get("/me/results", a.MyResults)
 		r.Get("/teams", a.ListTeams)
 		r.Get("/players", a.ListPlayers)
@@ -94,7 +96,6 @@ func New(cfg config.Config, st *store.Store, provider func(ctx context.Context) 
 			r.Patch("/tournaments/{id}/participants/{playerID}", a.ChangeTeam)
 			r.Post("/tournaments/{id}/start", a.StartTournament)
 			r.Post("/tournaments/{id}/end", a.EndTournament)
-			r.Put("/matches/{id}/score", a.SubmitScore)
 		})
 	})
 
@@ -637,23 +638,21 @@ type scoreBody struct {
 	Version   int `json:"version"`
 }
 
+const errNotYourTournament = "only admins and players in this tournament can edit its results"
+
 func (a *API) SubmitScore(w http.ResponseWriter, r *http.Request) {
 	id, err := parseUUID(chi.URLParam(r, "id"))
 	if err != nil {
 		writeErr(w, 400, "bad id")
 		return
 	}
-	var body scoreBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, 400, "invalid json")
-		return
-	}
-	if body.HomeGoals < 0 || body.AwayGoals < 0 {
-		writeErr(w, 400, "goals must be >= 0")
-		return
-	}
+	u, _ := userFrom(r.Context())
 	existing, err := a.Store.GetMatch(r.Context(), id)
 	if errors.Is(err, store.ErrNotFound) {
+		if !u.IsAdmin() {
+			writeErr(w, 403, errNotYourTournament)
+			return
+		}
 		writeErr(w, 404, "match not found")
 		return
 	}
@@ -664,6 +663,35 @@ func (a *API) SubmitScore(w http.ResponseWriter, r *http.Request) {
 	t, err := a.Store.GetTournament(r.Context(), existing.TournamentID)
 	if err != nil {
 		writeErr(w, 500, err.Error())
+		return
+	}
+	// Admins can always enter results. Everyone else must be a player in this
+	// tournament, and only while it is ongoing.
+	if !u.IsAdmin() {
+		in := false
+		if u.PlayerID != nil {
+			in, err = a.Store.IsParticipant(r.Context(), t.ID, *u.PlayerID)
+			if err != nil {
+				writeErr(w, 500, err.Error())
+				return
+			}
+		}
+		if !in {
+			writeErr(w, 403, errNotYourTournament)
+			return
+		}
+		if t.Status != "ACTIVE" {
+			writeErr(w, 403, "results can only be edited while the tournament is ongoing")
+			return
+		}
+	}
+	var body scoreBody
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		writeErr(w, 400, "invalid json")
+		return
+	}
+	if body.HomeGoals < 0 || body.AwayGoals < 0 {
+		writeErr(w, 400, "goals must be >= 0")
 		return
 	}
 	var m store.Match
