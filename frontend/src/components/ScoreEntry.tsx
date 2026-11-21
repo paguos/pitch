@@ -319,7 +319,7 @@ export function ScoreEntry({
             ) : null}
           </div>
           <Button type="submit" data-testid="score-entry-submit" disabled={!match || busy}>
-            {busy ? 'Saving…' : alreadyScored ? 'Update result' : 'Save result'}
+            {busy ? 'Saving…' : alreadyScored ? 'Update result' : 'Save'}
           </Button>
         </div>
       </form>
@@ -447,7 +447,7 @@ const SidePicker = forwardRef<PickerHandle, {
             aria-activedescendant={open && filtered[active] ? `${listId}-${active}` : undefined}
             autoComplete="off"
             spellCheck={false}
-            placeholder="Search team or player"
+            placeholder={mode === 'team' ? 'Select team' : 'Select player'}
             value={query}
             data-testid={`${testId}-input`}
             onChange={e => { setQuery(e.target.value); setHi(0); setOpen(true); }}

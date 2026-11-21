@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
 import { AlertDialog, Badge, Button, Card, Eyebrow, Stat } from '../components/ui';
-import { DeleteTournamentDialog } from '../components/DeleteTournamentDialog';
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
@@ -15,14 +14,12 @@ type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
-  const [deleting, setDeleting] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
@@ -90,15 +87,6 @@ export default function TournamentDetailPage() {
             <span className="font-mono text-[12px] text-bone/60 number-display">
               created {new Date(t.created_at).toISOString().slice(0,10)}
             </span>
-            {isAdmin && t.status !== 'COMPLETED' && (
-              <button
-                onClick={() => setDeleting(true)}
-                data-testid="tournament-delete-open"
-                className="font-mono text-[12px] uppercase tracking-widest2 text-coral/75 hover:text-coral transition-colors outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-coral"
-              >
-                delete
-              </button>
-            )}
           </div>
         </div>
 
@@ -185,18 +173,6 @@ export default function TournamentDetailPage() {
           <BracketTab detail={detail} onReport={refresh} />
         )}
       </div>
-
-      <DeleteTournamentDialog
-        tournament={deleting ? t : null}
-        tally={{
-          players: detail.participants.length,
-          matches: detail.matches.length,
-          played: detail.matches.filter(m => m.status === 'REPORTED' || m.status === 'COMPLETED').length,
-        }}
-        onClose={() => setDeleting(false)}
-        onDeleted={() => navigate('/')}
-        onRefused={refresh}
-      />
     </div>
   );
 }
@@ -688,7 +664,7 @@ function ActiveActions({
             {allScored ? (
               <span className="text-pitch">all results in · ready to end</span>
             ) : (
-              <>complete <span className="text-coral">{String(remaining).padStart(2,'0')}</span> more match{remaining === 1 ? '' : 'es'} or end anyway</>
+              <>complete <span className="text-coral">{String(remaining).padStart(2,'0')}</span> more match{remaining === 1 ? '' : 'es'}</>
             )}
           </div>
         )}
@@ -706,7 +682,7 @@ function ActiveActions({
           }
         }}
       >
-        end tournament →
+        end
       </Button>
       <AlertDialog
         open={open}

@@ -118,7 +118,7 @@ function Overview({ board }: { board: Board }) {
     <>
       <p className="mt-3 text-[14px] text-bone/70 max-w-md">
         {board.matches} {board.matches === 1 ? 'match' : 'matches'} played across {board.tournaments}{' '}
-        {board.tournaments === 1 ? 'tournament' : 'tournaments'}. Open any stat for the full table.
+        {board.tournaments === 1 ? 'tournament' : 'tournaments'}.
       </p>
 
       <div className="mt-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-px bg-hairline border border-hairline">
