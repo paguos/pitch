@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.5.1](https://github.com/paguos/pitch/compare/v0.5.0...v0.5.1) (2026-11-21)
+
+
+### Bug Fixes
+
+* simplify leaderboard tables ([#58](https://github.com/paguos/pitch/issues/58)) ([b4cc62d](https://github.com/paguos/pitch/commit/b4cc62d2db68f03973c8bba5c05670f992642124))
+* tidy leaderboard on mobile and overview ([#60](https://github.com/paguos/pitch/issues/60)) ([10017f6](https://github.com/paguos/pitch/commit/10017f6bffa74e8f5c956ccc0abf9b4d28e5cced))
+
 ## [0.5.0](https://github.com/paguos/pitch/compare/v0.4.0...v0.5.0) (2026-11-21)
 
 
