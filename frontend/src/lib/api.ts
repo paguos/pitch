@@ -135,10 +135,6 @@ export const api = {
     `/tournaments/${id}/participants/${player_id}`,
     { method: 'PATCH', body: JSON.stringify({ team_id }) },
   ),
-  copyTournament: (id: string, name: string) => req<Tournament>(
-    `/tournaments/${id}/copy`,
-    { method: 'POST', body: JSON.stringify({ name }) },
-  ),
   start: (id: string) => req<{ ok: boolean }>(`/tournaments/${id}/start`, { method: 'POST' }),
   deleteTournament: (id: string) => req<void>(`/tournaments/${id}`, { method: 'DELETE' }),
   endTournament: (id: string) => req<Tournament>(`/tournaments/${id}/end`, { method: 'POST' }),

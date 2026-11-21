@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
-import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
+import { AlertDialog, Badge, Button, Card, Eyebrow, Stat } from '../components/ui';
 import { DeleteTournamentDialog } from '../components/DeleteTournamentDialog';
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
@@ -22,7 +22,6 @@ export default function TournamentDetailPage() {
   const [players, setPlayers] = useState<Player[]>([]);
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
-  const [copying, setCopying] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
@@ -91,14 +90,6 @@ export default function TournamentDetailPage() {
             <span className="font-mono text-[12px] text-bone/60 number-display">
               created {new Date(t.created_at).toISOString().slice(0,10)}
             </span>
-            {isAdmin && (
-              <button
-                onClick={() => setCopying(true)}
-                className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
-              >
-                copy →
-              </button>
-            )}
             {isAdmin && t.status !== 'COMPLETED' && (
               <button
                 onClick={() => setDeleting(true)}
@@ -206,18 +197,6 @@ export default function TournamentDetailPage() {
         onDeleted={() => navigate('/')}
         onRefused={refresh}
       />
-
-      {copying && (
-        <CopyTournamentModal
-          sourceName={t.name}
-          onSubmit={async (name) => {
-            const copy = await api.copyTournament(t.id, name);
-            setCopying(false);
-            navigate(`/tournaments/${copy.id}`);
-          }}
-          onCancel={() => setCopying(false)}
-        />
-      )}
     </div>
   );
 }
@@ -820,64 +799,6 @@ function BracketSide({
         <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
-  );
-}
-
-function CopyTournamentModal({
-  sourceName, onSubmit, onCancel,
-}: {
-  sourceName: string;
-  onSubmit: (name: string) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(`${sourceName} (copy)`);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const canSubmit = name.trim().length > 0 && !busy;
-
-  async function submit() {
-    setErr(null);
-    setBusy(true);
-    try {
-      await onSubmit(name.trim());
-    } catch (e: any) {
-      setErr(e.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <AlertDialog
-      open
-      title="Copy tournament"
-      testId="copy-tournament-dialog"
-      body={
-        <form
-          className="space-y-4 mt-1"
-          onSubmit={e => { e.preventDefault(); if (canSubmit) submit(); }}
-        >
-          <div>
-            <label className="label-eyebrow block mb-2">new name</label>
-            <Input
-              autoFocus
-              required
-              data-testid="copy-tournament-name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-          </div>
-          <p className="font-mono text-[12px] text-bone/55">
-            Same participants and teams · new draw on start
-          </p>
-          {err && <div className="text-coral font-mono text-xs">{err}</div>}
-        </form>
-      }
-      confirmLabel={busy ? '…' : 'Copy'}
-      cancelLabel="Cancel"
-      confirmDisabled={!canSubmit}
-      onConfirm={submit}
-      onCancel={onCancel}
-    />
   );
 }
 
