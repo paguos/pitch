@@ -6,7 +6,6 @@ import TournamentList from './pages/TournamentList';
 import TournamentNew from './pages/TournamentNew';
 import TournamentDetail from './pages/TournamentDetail';
 import PlayersPage from './pages/Players';
-import MyResultsPage from './pages/MyResults';
 import LeaderboardPage from './pages/Leaderboard';
 import ProfilePage from './pages/Profile';
 
@@ -25,7 +24,7 @@ export default function App() {
     <Shell>
       <Routes>
         <Route path="/" element={<TournamentList />} />
-        <Route path="/me" element={<MyResultsPage />} />
+        <Route path="/me" element={<Navigate to="/profile" replace />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/players" element={<PlayersPage />} />
         <Route path="/players/:id" element={<ProfilePage />} />

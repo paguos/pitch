@@ -1,6 +1,5 @@
 import { ReactNode, useEffect, useState } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
-import { useAuth } from '../lib/auth';
 import { AccountMenu } from './AccountMenu';
 
 // Baked in at image build time (Dockerfile.prod): a release version like
@@ -30,7 +29,6 @@ const BASE_LINKS = [
   { to: '/players', label: 'Players', exact: false },
   { to: '/leaderboard', label: 'Leaderboard', exact: false },
 ];
-const MY_RESULTS_LINK = { to: '/me', label: 'My results', exact: false };
 
 export function Shell({ children }: { children: ReactNode }) {
   const [hhmm, setHhmm] = useState<string>('');
@@ -38,9 +36,6 @@ export function Shell({ children }: { children: ReactNode }) {
   const [tz, setTz] = useState<string>('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const location = useLocation();
-  const { user } = useAuth();
-  // The default admin isn't a player, so only players get a results page.
-  const NAV_LINKS = user?.player_id ? [...BASE_LINKS, MY_RESULTS_LINK] : BASE_LINKS;
 
   useEffect(() => {
     const tick = () => {
@@ -69,7 +64,7 @@ export function Shell({ children }: { children: ReactNode }) {
             <span className="font-mono text-[11px] uppercase tracking-widest2 text-pitch">/ console</span>
           </Link>
           <nav className="hidden md:flex gap-5 ml-6 whitespace-nowrap font-mono text-[12px] uppercase tracking-widest2 text-bone/75">
-            {NAV_LINKS.map(({ to, label }) => (
+            {BASE_LINKS.map(({ to, label }) => (
               <Link key={to} to={to} className="hover:text-pitch">{label}</Link>
             ))}
           </nav>
@@ -133,7 +128,7 @@ export function Shell({ children }: { children: ReactNode }) {
             </button>
           </div>
           <nav className="flex flex-col px-6 pt-6 gap-1">
-            {NAV_LINKS.map(({ to, label, exact }) => (
+            {BASE_LINKS.map(({ to, label, exact }) => (
               <NavLink
                 key={to}
                 to={to}

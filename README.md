@@ -42,7 +42,7 @@ already exist, the seed is skipped.
 - **Players** sign in with Google. To let someone in, an admin sets their
   **email** on their player (Players tab → edit). Only that Google account can
   sign in as them; they land as a read-only **viewer**, see every tournament,
-  and get a **My results** page with their matches and standing. Changing the
+  and get a **profile** with their record, plus each tournament's matches and standing. Changing the
   player's email signs them out and unlinks the Google account.
 - **Lost the admin password?** Run
   `NEW_ADMIN_PASSWORD='…' /app/server reset-admin-password` inside the backend
