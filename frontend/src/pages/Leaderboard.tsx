@@ -271,20 +271,11 @@ function PitchLines({ className }: { className?: string }) {
 // Full table
 // ---------------------------------------------------------------------------
 
-const COLUMNS: { label: string; title: string; get: (s: Stats) => number }[] = [
-  { label: 'P', title: 'Played', get: s => s.played },
-  { label: 'W', title: 'Won', get: s => s.won },
-  { label: 'D', title: 'Drawn', get: s => s.drawn },
-  { label: 'L', title: 'Lost', get: s => s.lost },
-  { label: 'GF', title: 'Goals for', get: s => s.goalsFor },
-  { label: 'GA', title: 'Goals against', get: s => s.goalsAgainst },
-];
-
 function StatTable({ cat, board }: { cat: Category; board: Board }) {
   const { user } = useAuth();
   const meId = user?.player_id ?? null;
   const ranking = rankCategory(cat, board);
-  const colSpan = 3 + COLUMNS.length;
+  const colSpan = 3;
   const minNote = cat.minPlayed ? ` Needs ${cat.minPlayed} matches to qualify.` : '';
 
   return (
@@ -299,11 +290,6 @@ function StatTable({ cat, board }: { cat: Category; board: Board }) {
               <th scope="col" className="py-3 pr-3 w-12 font-normal">#</th>
               <th scope="col" className="py-3 pr-4 font-normal">{cat.subject === 'team' ? 'Team' : 'Player'}</th>
               <th scope="col" className="py-3 pr-4 w-[40%] md:w-[28%] font-normal">{cat.unit}</th>
-              {COLUMNS.map(c => (
-                <th key={c.label} scope="col" className="hidden md:table-cell py-3 w-12 text-right font-normal">
-                  <abbr title={c.title} className="no-underline">{c.label}</abbr>
-                </th>
-              ))}
             </tr>
           </thead>
           <tbody>
@@ -366,9 +352,6 @@ function TableRow({
               {mine && <Badge tone="pitch">you</Badge>}
             </div>
             {note && <div className="mt-1 font-mono text-[12px] text-bone/60 truncate">{note}</div>}
-            <div className="mt-1 md:hidden font-mono text-[12px] text-bone/60 number-display">
-              {s.played} played, {s.won}-{s.drawn}-{s.lost}
-            </div>
           </div>
         </div>
       </td>
@@ -376,11 +359,6 @@ function TableRow({
         <div className="font-display text-3xl leading-none text-bone number-display">{cat.show(s)}</div>
         {!dim && <div className="mt-2"><Bar share={share} lead={lead} delay={index * 45} /></div>}
       </td>
-      {COLUMNS.map(c => (
-        <td key={c.label} className="hidden md:table-cell py-4 text-right font-mono text-[13px] text-bone/75 number-display">
-          {c.get(s)}
-        </td>
-      ))}
     </tr>
   );
 }
