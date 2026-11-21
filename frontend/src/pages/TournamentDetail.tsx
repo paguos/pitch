@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { useAuth } from '../lib/auth';
 import { api, Match, Participant, Player, StandingsRow, Team, TournamentDetail } from '../lib/api';
-import { AlertDialog, Badge, Button, Card, Eyebrow, Input, Stat } from '../components/ui';
+import { AlertDialog, Badge, Button, Card, Eyebrow, Stat } from '../components/ui';
 import { TeamCrest } from '../components/TeamCrest';
 import { ScoreEntry } from '../components/ScoreEntry';
 import { CompetitionPicker } from '../components/CompetitionPicker';
@@ -18,14 +18,12 @@ type Tab = 'participants' | 'fixtures' | 'standings' | 'bracket';
 
 export default function TournamentDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { isAdmin, user } = useAuth();
   const [detail, setDetail] = useState<TournamentDetail | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [players, setPlayers] = useState<Player[]>([]);
   const [tab, setTab] = useState<Tab>('participants');
   const [err, setErr] = useState<string | null>(null);
-  const [copying, setCopying] = useState(false);
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({});
 
   async function refresh() {
@@ -97,14 +95,6 @@ export default function TournamentDetailPage() {
             <span className="font-mono text-[12px] text-bone/60 number-display">
               created {new Date(t.created_at).toISOString().slice(0,10)}
             </span>
-            {isAdmin && (
-              <button
-                onClick={() => setCopying(true)}
-                className="font-mono text-[12px] uppercase tracking-widest2 text-bone/65 hover:text-pitch transition-colors"
-              >
-                copy →
-              </button>
-            )}
           </div>
         </div>
 
@@ -191,18 +181,6 @@ export default function TournamentDetailPage() {
           <BracketTab detail={detail} onReport={refresh} />
         )}
       </div>
-
-      {copying && (
-        <CopyTournamentModal
-          sourceName={t.name}
-          onSubmit={async (name) => {
-            const copy = await api.copyTournament(t.id, name);
-            setCopying(false);
-            navigate(`/tournaments/${copy.id}`);
-          }}
-          onCancel={() => setCopying(false)}
-        />
-      )}
     </div>
     </CanEditResults.Provider>
   );
@@ -695,7 +673,7 @@ function ActiveActions({
             {allScored ? (
               <span className="text-pitch">all results in · ready to end</span>
             ) : (
-              <>complete <span className="text-coral">{String(remaining).padStart(2,'0')}</span> more match{remaining === 1 ? '' : 'es'} or end anyway</>
+              <>complete <span className="text-coral">{String(remaining).padStart(2,'0')}</span> more match{remaining === 1 ? '' : 'es'}</>
             )}
           </div>
         )}
@@ -713,7 +691,7 @@ function ActiveActions({
           }
         }}
       >
-        end tournament →
+        end
       </Button>
       <AlertDialog
         open={open}
@@ -806,64 +784,6 @@ function BracketSide({
         <span className="font-mono text-[12px] text-bone/60">—</span>
       )}
     </div>
-  );
-}
-
-function CopyTournamentModal({
-  sourceName, onSubmit, onCancel,
-}: {
-  sourceName: string;
-  onSubmit: (name: string) => Promise<void>;
-  onCancel: () => void;
-}) {
-  const [name, setName] = useState(`${sourceName} (copy)`);
-  const [err, setErr] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const canSubmit = name.trim().length > 0 && !busy;
-
-  async function submit() {
-    setErr(null);
-    setBusy(true);
-    try {
-      await onSubmit(name.trim());
-    } catch (e: any) {
-      setErr(e.message);
-      setBusy(false);
-    }
-  }
-
-  return (
-    <AlertDialog
-      open
-      title="Copy tournament"
-      testId="copy-tournament-dialog"
-      body={
-        <form
-          className="space-y-4 mt-1"
-          onSubmit={e => { e.preventDefault(); if (canSubmit) submit(); }}
-        >
-          <div>
-            <label className="label-eyebrow block mb-2">new name</label>
-            <Input
-              autoFocus
-              required
-              data-testid="copy-tournament-name"
-              value={name}
-              onChange={e => setName(e.target.value)}
-            />
-          </div>
-          <p className="font-mono text-[12px] text-bone/55">
-            Same participants and teams · new draw on start
-          </p>
-          {err && <div className="text-coral font-mono text-xs">{err}</div>}
-        </form>
-      }
-      confirmLabel={busy ? '…' : 'Copy'}
-      cancelLabel="Cancel"
-      confirmDisabled={!canSubmit}
-      onConfirm={submit}
-      onCancel={onCancel}
-    />
   );
 }
 

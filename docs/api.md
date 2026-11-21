@@ -224,6 +224,16 @@ Body: `{"name": "Friday Night", "format": "league"}` — `format ∈
 - Participant rows include `player_name`, `team_name`, and
   `team_logo_url` joined in for UI convenience.
 
+### `DELETE /tournaments/{id}` (admin)
+
+Deletes a `DRAFT` or `ACTIVE` tournament together with its participants and
+matches (cascade). `COMPLETED` tournaments are history and are never deleted.
+
+**204** on success.
+
+- **404** — not found
+- **409** — tournament is `COMPLETED` (`{"error":"completed tournaments can't be deleted"}`)
+
 ### `POST /tournaments/{id}/participants` (join)
 
 Body: `{"player_id": "<uuid>", "team_id": "<uuid>"}`. **201** with the
@@ -262,20 +272,6 @@ with the current row.
 
 - **404** — not found
 - **409** — tournament has not started (still in `DRAFT`)
-
-### `POST /tournaments/{id}/copy`
-
-Creates a new `DRAFT` tournament with the same `format` and all participants
-(player + team pairings) copied from the source. Matches are **not** copied —
-the draw is generated fresh when the copy is started.
-
-Body: `{"name": "New tournament name"}`
-
-**201** — the new tournament row (same shape as `POST /tournaments`).
-
-- **400** — name empty
-- **404** — source tournament not found
-- **409** — a tournament with that name already exists
 
 ---
 

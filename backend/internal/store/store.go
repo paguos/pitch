@@ -21,6 +21,7 @@ var ErrMatchNotPlayable = errors.New("match is not yet playable")
 var ErrPlayerInUse = errors.New("player is referenced by tournaments and cannot be deleted")
 var ErrTournamentNotStarted = errors.New("tournament has not started")
 var ErrNameTaken = errors.New("a tournament with that name already exists")
+var ErrTournamentCompleted = errors.New("completed tournaments can't be deleted")
 
 // pgUniqueViolation is the Postgres error code for unique_violation.
 const pgUniqueViolation = "23505"
@@ -331,55 +332,6 @@ func (s *Store) GetTournament(ctx context.Context, id uuid.UUID) (Tournament, er
 		return t, ErrNotFound
 	}
 	return t, err
-}
-
-// CopyTournament creates a new DRAFT tournament with the same format and
-// participants (player+team pairs) as the source. Matches are not copied —
-// the draw is generated fresh when the copy is started.
-func (s *Store) CopyTournament(ctx context.Context, sourceID uuid.UUID, newName string) (Tournament, error) {
-	var t Tournament
-
-	tx, err := s.DB.Begin(ctx)
-	if err != nil {
-		return t, err
-	}
-	defer tx.Rollback(ctx)
-
-	var format string
-	err = tx.QueryRow(ctx, `SELECT format FROM tournaments WHERE id=$1`, sourceID).Scan(&format)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return t, ErrNotFound
-	}
-	if err != nil {
-		return t, err
-	}
-
-	err = tx.QueryRow(ctx, `
-		INSERT INTO tournaments (name, format, created_by)
-		VALUES ($1, $2, NULL)
-		RETURNING id, name, format, status, created_by, created_at, started_at, completed_at, version, rng_seed
-	`, newName, format).Scan(
-		&t.ID, &t.Name, &t.Format, &t.Status,
-		&t.CreatedBy, &t.CreatedAt, &t.StartedAt, &t.CompletedAt,
-		&t.Version, &t.RngSeed,
-	)
-	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
-			return t, ErrNameTaken
-		}
-		return t, err
-	}
-
-	_, err = tx.Exec(ctx, `
-		INSERT INTO participants (tournament_id, player_id, team_id)
-		SELECT $1, player_id, team_id FROM participants WHERE tournament_id=$2
-	`, t.ID, sourceID)
-	if err != nil {
-		return t, err
-	}
-
-	return t, tx.Commit(ctx)
 }
 
 // --- Participants ---
@@ -783,6 +735,31 @@ func (s *Store) IsParticipant(ctx context.Context, tournamentID, playerID uuid.U
 		SELECT EXISTS (SELECT 1 FROM participants WHERE tournament_id=$1 AND player_id=$2)
 	`, tournamentID, playerID).Scan(&ok)
 	return ok, err
+}
+
+// DeleteTournament removes a DRAFT or ACTIVE tournament together with its
+// participants and matches (ON DELETE CASCADE). COMPLETED tournaments are
+// history and are never deleted: ErrTournamentCompleted. The status check is
+// part of the DELETE itself, so a tournament that completes between a read
+// and this call can't be removed.
+func (s *Store) DeleteTournament(ctx context.Context, id uuid.UUID) error {
+	tag, err := s.DB.Exec(ctx,
+		`DELETE FROM tournaments WHERE id=$1 AND status <> 'COMPLETED'`, id)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() > 0 {
+		return nil
+	}
+	var exists bool
+	if err := s.DB.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM tournaments WHERE id=$1)`, id).Scan(&exists); err != nil {
+		return err
+	}
+	if exists {
+		return ErrTournamentCompleted
+	}
+	return ErrNotFound
 }
 
 func (s *Store) GetMatch(ctx context.Context, matchID uuid.UUID) (Match, error) {

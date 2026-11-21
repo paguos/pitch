@@ -37,6 +37,10 @@ already exist, the seed is skipped.
 - **First run:** a fresh app (no admin yet) opens on a setup screen where you
   choose the password for the `admin` account. That is the only time the
   screen appears. On a deployed instance, open it right after the first deploy.
+  Local dev skips it: `docker-compose.yml` sets `DEV_ADMIN_PASSWORD`, so a fresh
+  database already has `admin` / `admin-dev-only`. (Dev only: the server
+  refuses to start with it outside `APP_ENV=dev`, and it never changes an
+  existing admin.)
 - **Admin** can change anything: players, tournaments, scores. Admins can also
   give admin rights to other players (Players tab → *make admin*). The last
   admin can't be removed, and you can't remove your own rights.

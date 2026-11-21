@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { api, Player, Tournament } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { Badge, Button, Card, Eyebrow } from '../components/ui';
+import { DeleteTournamentDialog } from '../components/DeleteTournamentDialog';
+import { RowMenu } from '../components/RowMenu';
 
 const statusTone = (s: Tournament['status']) =>
   s === 'ACTIVE' ? 'live' : s === 'COMPLETED' ? 'pitch' : 'neutral';
@@ -12,9 +14,12 @@ export default function TournamentList() {
   const [list, setList] = useState<Tournament[] | null>(null);
   const [players, setPlayers] = useState<Player[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Tournament | null>(null);
+
+  const reload = () => api.listTournaments().then(setList).catch(e => setErr(e.message));
 
   useEffect(() => {
-    api.listTournaments().then(setList).catch(e => setErr(e.message));
+    reload();
     api.listPlayers().then(setPlayers).catch(() => setPlayers([]));
   }, []);
 
@@ -77,10 +82,10 @@ export default function TournamentList() {
             <div className="col-span-2 text-right">Created</div>
           </div>
           {list.map((t, i) => (
+            <div key={t.id} className="relative border-b border-hairline last:border-0">
             <Link
-              key={t.id}
               to={`/tournaments/${t.id}`}
-              className="flex flex-col gap-1.5 px-5 py-4 border-b border-hairline last:border-0 hover:bg-ink/40 group sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center"
+              className={`flex flex-col gap-1.5 px-5 py-4 hover:bg-ink/40 group sm:grid sm:grid-cols-12 sm:gap-4 sm:items-center ${isAdmin ? 'pr-16 sm:pr-16' : ''}`}
             >
               <div className="hidden sm:block col-span-1 font-mono text-[13px] text-bone/55 number-display">
                 {String(i + 1).padStart(2, '0')}
@@ -112,9 +117,29 @@ export default function TournamentList() {
                 {new Date(t.created_at).toISOString().slice(0, 10)}
               </div>
             </Link>
+            {/* Finished tournaments are history, so they get no actions. */}
+            {isAdmin && t.status !== 'COMPLETED' && (
+              <div className="absolute right-3 top-3 sm:inset-y-0 sm:flex sm:items-center">
+                <RowMenu
+                  label={`Actions for ${t.name}`}
+                  testId={`tournament-menu-${t.name}`}
+                  items={[
+                    { label: 'Delete', tone: 'danger', testId: `tournament-delete-${t.name}`, onSelect: () => setPendingDelete(t) },
+                  ]}
+                />
+              </div>
+            )}
+            </div>
           ))}
         </Card>
       )}
+
+      <DeleteTournamentDialog
+        tournament={pendingDelete}
+        onClose={() => setPendingDelete(null)}
+        onDeleted={reload}
+        onRefused={reload}
+      />
     </div>
   );
 }

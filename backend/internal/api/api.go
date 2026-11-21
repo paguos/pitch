@@ -90,10 +90,10 @@ func New(cfg config.Config, st *store.Store, provider func(ctx context.Context) 
 			r.Delete("/players/{id}", a.DeletePlayer)
 
 			r.Post("/tournaments", a.CreateTournament)
+			r.Delete("/tournaments/{id}", a.DeleteTournament)
 			r.Post("/tournaments/{id}/participants", a.JoinTournament)
 			r.Delete("/tournaments/{id}/participants/{playerID}", a.LeaveTournament)
 			r.Patch("/tournaments/{id}/participants/{playerID}", a.ChangeTeam)
-			r.Post("/tournaments/{id}/copy", a.CopyTournament)
 			r.Post("/tournaments/{id}/start", a.StartTournament)
 			r.Post("/tournaments/{id}/end", a.EndTournament)
 		})
@@ -306,42 +306,6 @@ func (a *API) CreateTournament(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	t, err := a.Store.CreateTournament(r.Context(), body.Name, body.Format, uuid.Nil)
-	if errors.Is(err, store.ErrNameTaken) {
-		writeErr(w, 409, "a tournament with that name already exists")
-		return
-	}
-	if err != nil {
-		writeErr(w, 500, err.Error())
-		return
-	}
-	writeJSON(w, 201, t)
-}
-
-type copyTournamentBody struct {
-	Name string `json:"name"`
-}
-
-func (a *API) CopyTournament(w http.ResponseWriter, r *http.Request) {
-	id, err := parseUUID(chi.URLParam(r, "id"))
-	if err != nil {
-		writeErr(w, 400, "bad id")
-		return
-	}
-	var body copyTournamentBody
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		writeErr(w, 400, "invalid json")
-		return
-	}
-	body.Name = strings.TrimSpace(body.Name)
-	if body.Name == "" {
-		writeErr(w, 400, "name required")
-		return
-	}
-	t, err := a.Store.CopyTournament(r.Context(), id, body.Name)
-	if errors.Is(err, store.ErrNotFound) {
-		writeErr(w, 404, "tournament not found")
-		return
-	}
 	if errors.Is(err, store.ErrNameTaken) {
 		writeErr(w, 409, "a tournament with that name already exists")
 		return
@@ -635,6 +599,29 @@ func (a *API) EndTournament(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, 200, t)
+}
+
+// DeleteTournament removes a tournament that hasn't finished. Completed
+// tournaments are kept as history and answer 409.
+func (a *API) DeleteTournament(w http.ResponseWriter, r *http.Request) {
+	id, err := parseUUID(chi.URLParam(r, "id"))
+	if err != nil {
+		writeErr(w, 400, "bad id")
+		return
+	}
+	err = a.Store.DeleteTournament(r.Context(), id)
+	switch {
+	case errors.Is(err, store.ErrNotFound):
+		writeErr(w, 404, "not found")
+		return
+	case errors.Is(err, store.ErrTournamentCompleted):
+		writeErr(w, 409, err.Error())
+		return
+	case err != nil:
+		writeErr(w, 500, err.Error())
+		return
+	}
+	w.WriteHeader(204)
 }
 
 func randomInt64() (int64, error) {
