@@ -195,7 +195,7 @@ function Cell({
         ) : (
           <>
             <div className="mt-5 flex items-center gap-3">
-              <Who s={lead.s} cat={cat} lead />
+              {cat.subject === 'team' && <Who s={lead.s} cat={cat} lead />}
               <span className={`flex-1 min-w-0 truncate font-display leading-none text-bone ${wide ? 'text-5xl' : 'text-4xl'}`}>
                 {lead.s.name}
               </span>
